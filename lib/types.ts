@@ -68,6 +68,8 @@ export interface Channel {
   quality?: string
   url: string
   category?: string
+  categories?: string[]
+  country?: string
 }
 
 export interface User {

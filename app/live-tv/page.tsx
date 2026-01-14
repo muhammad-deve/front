@@ -1,18 +1,93 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ChannelCard } from "@/components/channel-card"
-import { mockChannels } from "@/lib/mock-data"
 import type { Channel } from "@/lib/types"
+import { listChannels } from "@/lib/pb"
 import { Radio, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select"
 
 export default function LiveTVPage() {
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
+	const [channels, setChannels] = useState<Channel[]>([])
+	const [isLoading, setIsLoading] = useState(true)
+	const [query, setQuery] = useState("")
+	const [selectedCategory, setSelectedCategory] = useState<string>("all")
+	const [selectedCountry, setSelectedCountry] = useState<string>("all")
 
-  const categories = [...new Set(mockChannels.map((c) => c.category).filter(Boolean))]
+	useEffect(() => {
+		let cancelled = false
+		setIsLoading(true)
+
+		const loadAll = async () => {
+			const out: Channel[] = []
+			let page = 1
+			let totalPages = 1
+			while (page <= totalPages) {
+				const resp = await listChannels({ page, perPage: 200, sort: "title" })
+				out.push(...resp.items)
+				totalPages = resp.totalPages
+				page += 1
+			}
+			return out
+		}
+
+		loadAll()
+			.then((items) => {
+				if (cancelled) return
+				setChannels(items)
+			})
+			.catch(() => {
+				if (cancelled) return
+				setChannels([])
+			})
+			.finally(() => {
+				if (cancelled) return
+				setIsLoading(false)
+			})
+		return () => {
+			cancelled = true
+		}
+	}, [])
+
+	const allCategories = [
+		...new Set(channels.flatMap((c) => c.categories || (c.category ? [c.category] : [])).filter((v): v is string => Boolean(v))),
+	].sort((a, b) => a.localeCompare(b))
+	const allCountries = [...new Set(channels.map((c) => c.country).filter((v): v is string => Boolean(v)))].sort((a, b) =>
+		a.localeCompare(b),
+	)
+
+	const q = query.trim().toLowerCase()
+	const filtered = channels.filter((c) => {
+		if (q) {
+			const hay = `${c.name} ${(c.categories || []).join(" ")} ${c.category || ""} ${c.country || ""}`.toLowerCase()
+			if (!hay.includes(q)) return false
+		}
+
+		if (selectedCategory !== "all") {
+			const cats = c.categories || (c.category ? [c.category] : [])
+			if (!cats.includes(selectedCategory)) return false
+		}
+
+		if (selectedCountry !== "all") {
+			if ((c.country || "") !== selectedCountry) return false
+		}
+
+		return true
+	})
+
+	const normalized = filtered.map((c) => ({ ...c, category: c.category?.trim() || c.categories?.[0] || "Other" }))
+	const categories = [...new Set(normalized.map((c) => c.category).filter(Boolean))]
 
   return (
     <main className="min-h-screen bg-background">
@@ -26,9 +101,48 @@ export default function LiveTVPage() {
           </div>
           <div>
             <h1 className="text-3xl font-bold text-foreground">Live TV</h1>
-            <p className="text-muted-foreground">{mockChannels.length} channels streaming live</p>
+            <p className="text-muted-foreground">
+					{isLoading ? "Loading channels..." : `${filtered.length} channels streaming live`}
+			</p>
           </div>
         </div>
+
+			<div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-4">
+				<Input
+					placeholder="Search channels..."
+					value={query}
+					onChange={(e) => setQuery(e.target.value)}
+					className="h-11 bg-secondary border-border"
+				/>
+
+				<Select value={selectedCategory} onValueChange={setSelectedCategory}>
+					<SelectTrigger className="w-full h-11 bg-secondary border-border">
+						<SelectValue placeholder="Category" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">All categories</SelectItem>
+						{allCategories.map((c) => (
+							<SelectItem key={c} value={c}>
+								{c}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+
+				<Select value={selectedCountry} onValueChange={setSelectedCountry}>
+					<SelectTrigger className="w-full h-11 bg-secondary border-border">
+						<SelectValue placeholder="Country" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">All countries</SelectItem>
+						{allCountries.map((c) => (
+							<SelectItem key={c} value={c}>
+								{c}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
 
         {/* Active Player Modal */}
         {activeChannel && (
@@ -81,18 +195,28 @@ export default function LiveTVPage() {
         )}
 
         {/* Channels by Category */}
-        {categories.map((category) => (
-          <section key={category} className="mb-12">
-            <h2 className="text-xl font-bold text-foreground mb-4">{category}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {mockChannels
-                .filter((c) => c.category === category)
-                .map((channel) => (
-                  <ChannelCard key={channel.id} channel={channel} onWatch={setActiveChannel} />
-                ))}
-            </div>
-          </section>
-        ))}
+			{isLoading ? (
+				<div className="text-center py-16">
+					<p className="text-muted-foreground">Loading...</p>
+				</div>
+			) : normalized.length === 0 ? (
+				<div className="text-center py-16">
+					<p className="text-muted-foreground">No channels match your filters.</p>
+				</div>
+			) : (
+				categories.map((category) => (
+					<section key={category} className="mb-12">
+						<h2 className="text-xl font-bold text-foreground mb-4">{category}</h2>
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+							{normalized
+								.filter((c) => c.category === category)
+								.map((channel) => (
+									<ChannelCard key={channel.id} channel={channel} onWatch={setActiveChannel} />
+								))}
+						</div>
+					</section>
+				))
+			)}
       </div>
 
       <Footer />

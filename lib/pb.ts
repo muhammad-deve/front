@@ -1,4 +1,4 @@
-import type { Content, Person, VideoSources } from "./types"
+import type { Content, Person, VideoSources, Channel } from "./types"
 
 type PBListResp<T> = {
   page: number
@@ -55,6 +55,18 @@ type PBPersonRecord = {
 type PBGenreRecord = {
   id: string
   name?: string
+}
+
+type PBChannelRecord = {
+  id: string
+  title?: string
+  logo_url?: string
+  quality?: string
+  stream_url?: string
+  expand?: {
+    category?: Array<{ name?: string }>
+    country?: { name?: string; code?: string }
+  }
 }
 
 let peopleHasContentsField = false
@@ -427,6 +439,58 @@ export async function listGenres(): Promise<Array<{ id: string; name: string }>>
   return resp.items
     .map((g) => ({ id: g.id, name: toDisplayGenreName((g.name || "").trim()) }))
     .filter((g) => g.id && g.name)
+}
+
+export async function listChannels(opts?: {
+  page?: number
+  perPage?: number
+  filter?: string
+  sort?: string
+}): Promise<{ items: Channel[]; totalItems: number; totalPages: number; page: number; perPage: number }> {
+  const page = opts?.page ?? 1
+  const perPage = opts?.perPage ?? 200
+
+  const resp = await pbGetJSON<PBListResp<PBChannelRecord>>(pbApiBasePath() + "/channels", {
+    page,
+    perPage,
+    filter: opts?.filter,
+    sort: opts?.sort || "title",
+    expand: "category,country",
+    fields: "id,title,logo_url,quality,stream_url,expand.category,expand.country",
+  })
+
+  const items: Channel[] = []
+  for (const r of resp.items) {
+    const name = (r.title || "").trim()
+    const url = (r.stream_url || "").trim()
+    if (!name || !url) continue
+
+    const categories = (r.expand?.category || [])
+      .map((c) => (typeof c?.name === "string" ? c.name.trim() : ""))
+      .filter(Boolean)
+
+    const category = categories[0] || undefined
+    const country = typeof r.expand?.country?.name === "string" ? r.expand.country.name.trim() : undefined
+
+    items.push({
+      id: r.id,
+      name,
+      logo: (r.logo_url || "").trim() || undefined,
+      quality: (r.quality || "").trim() || undefined,
+      url,
+      category: category || undefined,
+      categories: categories.length > 0 ? categories : undefined,
+      country: country || undefined,
+    })
+  }
+
+  return {
+    items,
+    totalItems: resp.totalItems,
+    totalPages: resp.totalPages,
+    page: resp.page,
+    perPage: resp.perPage,
+  }
 }
 
 export async function findGenreBySlug(slug: string): Promise<{ id: string; name: string } | null> {
