@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ContentCard } from "@/components/content-card"
-import { allContent, genres } from "@/lib/mock-data"
+import { findGenreBySlug, listContent } from "@/lib/pb"
 import { ChevronLeft } from "lucide-react"
 import Link from "next/link"
 
@@ -12,13 +12,18 @@ interface GenrePageProps {
 
 export default async function GenrePage({ params }: GenrePageProps) {
   const { slug } = await params
-  const genreName = genres.find((g) => g.toLowerCase() === slug)
+  const genre = await findGenreBySlug(slug)
 
-  if (!genreName) {
+  if (!genre) {
     notFound()
   }
 
-  const genreContent = allContent.filter((c) => c.genres.some((g) => g.toLowerCase() === slug))
+	const { items: genreContent, totalItems } = await listContent({
+		page: 1,
+		perPage: 120,
+		filter: `genre_id ?= "${genre.id}"`,
+		sort: "-vote_count",
+	})
 
   return (
     <main className="min-h-screen bg-background">
@@ -36,9 +41,9 @@ export default async function GenrePage({ params }: GenrePageProps) {
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl lg:text-4xl font-bold text-foreground mb-2">{genreName}</h1>
+          <h1 className="text-3xl lg:text-4xl font-bold text-foreground mb-2">{genre.name}</h1>
           <p className="text-muted-foreground">
-            {genreContent.length} title{genreContent.length !== 1 ? "s" : ""} in this genre
+            {totalItems} title{totalItems !== 1 ? "s" : ""} in this genre
           </p>
         </div>
 

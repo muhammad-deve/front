@@ -1,16 +1,17 @@
 "use client"
 
-import { useState, useMemo, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ContentCard } from "@/components/content-card"
 import { SearchFilters } from "@/components/search-filters"
-import { allContent } from "@/lib/mock-data"
+import { listContent, listGenres } from "@/lib/pb"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Search, Grid, List, SlidersHorizontal, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { Content } from "@/lib/types"
 
 const defaultFilters = {
   type: "all",
@@ -28,10 +29,95 @@ function SearchContent() {
   const [filters, setFilters] = useState(defaultFilters)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [showFilters, setShowFilters] = useState(false)
+	const [results, setResults] = useState<Content[]>([])
+	const [totalItems, setTotalItems] = useState(0)
+	const [isLoading, setIsLoading] = useState(false)
+	const [genres, setGenres] = useState<Array<{ id: string; name: string }>>([])
 
   useEffect(() => {
     setQuery(initialQuery)
   }, [initialQuery])
+
+	useEffect(() => {
+		let cancelled = false
+		listGenres()
+			.then((g) => {
+				if (cancelled) return
+				setGenres(g)
+			})
+			.catch(() => {
+				if (cancelled) return
+				setGenres([])
+			})
+		return () => {
+			cancelled = true
+		}
+	}, [])
+
+	useEffect(() => {
+		let cancelled = false
+		const q = query.trim()
+		const parts: string[] = []
+		if (q) {
+			const escaped = q.replaceAll('"', "\\\"")
+			parts.push(`(title ~ "${escaped}" || plot ~ "${escaped}")`)
+		}
+		if (filters.type === "movie") {
+			parts.push('type="movie"')
+		} else if (filters.type === "tv") {
+			parts.push('type="serie"')
+		}
+		if (filters.year?.length === 2) {
+			parts.push(`released_year >= ${filters.year[0]} && released_year <= ${filters.year[1]}`)
+		}
+		if (filters.rating > 0) {
+			parts.push(`imdb_rating >= ${filters.rating}`)
+		}
+		if (filters.genre !== "all") {
+			const gid = genres.find((g) => g.name.toLowerCase() === filters.genre)?.id
+			if (gid) {
+				parts.push(`genre_id ?= "${gid}"`)
+			}
+		}
+		const filter = parts.join(" && ")
+
+		let sort = "-vote_count"
+		switch (filters.sortBy) {
+			case "rating":
+				sort = "-imdb_rating"
+				break
+			case "year":
+				sort = "-released_year"
+				break
+			case "title":
+				sort = "title"
+				break
+			case "popularity":
+			default:
+				sort = "-vote_count"
+		}
+
+		setIsLoading(true)
+		listContent({ page: 1, perPage: 120, filter: filter || undefined, sort })
+			.then((resp) => {
+				if (cancelled) return
+				setResults(resp.items)
+				setTotalItems(resp.totalItems)
+			})
+			.catch(() => {
+				if (cancelled) return
+				setResults([])
+				setTotalItems(0)
+			})
+			.finally(() => {
+				if (cancelled) return
+				setIsLoading(false)
+			})
+
+		return () => {
+			cancelled = true
+		}
+	}, [query, filters, genres])
 
   const handleFilterChange = (key: string, value: string | number | [number, number]) => {
     setFilters((prev) => ({ ...prev, [key]: value }))
@@ -40,60 +126,6 @@ function SearchContent() {
   const resetFilters = () => {
     setFilters(defaultFilters)
   }
-
-  const filteredResults = useMemo(() => {
-    let results = [...allContent]
-
-    // Search query
-    if (query) {
-      const lowerQuery = query.toLowerCase()
-      results = results.filter(
-        (item) =>
-          item.title.toLowerCase().includes(lowerQuery) ||
-          item.genres.some((g) => g.toLowerCase().includes(lowerQuery)) ||
-          item.plot?.toLowerCase().includes(lowerQuery),
-      )
-    }
-
-    // Type filter
-    if (filters.type !== "all") {
-      results = results.filter((item) => item.type === filters.type)
-    }
-
-    // Genre filter
-    if (filters.genre !== "all") {
-      results = results.filter((item) => item.genres.some((g) => g.toLowerCase() === filters.genre))
-    }
-
-    // Year filter
-    results = results.filter((item) => {
-      const year = item.startYear || 0
-      return year >= filters.year[0] && year <= filters.year[1]
-    })
-
-    // Rating filter
-    if (filters.rating > 0) {
-      results = results.filter((item) => (item.rating?.aggregateRating || 0) >= filters.rating)
-    }
-
-    // Sort
-    switch (filters.sortBy) {
-      case "rating":
-        results.sort((a, b) => (b.rating?.aggregateRating || 0) - (a.rating?.aggregateRating || 0))
-        break
-      case "year":
-        results.sort((a, b) => (b.startYear || 0) - (a.startYear || 0))
-        break
-      case "title":
-        results.sort((a, b) => a.title.localeCompare(b.title))
-        break
-      case "popularity":
-      default:
-        results.sort((a, b) => (b.rating?.voteCount || 0) - (a.rating?.voteCount || 0))
-    }
-
-    return results
-  }, [query, filters])
 
   return (
     <div className="container mx-auto px-4 pt-24 lg:pt-32 pb-8">
@@ -149,7 +181,7 @@ function SearchContent() {
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Filters Sidebar */}
         <aside className={cn("w-full lg:w-72 flex-shrink-0", showFilters ? "block" : "hidden lg:block")}>
-          <SearchFilters filters={filters} onFilterChange={handleFilterChange} onReset={resetFilters} />
+          <SearchFilters genres={genres.map((g) => g.name)} filters={filters} onFilterChange={handleFilterChange} onReset={resetFilters} />
         </aside>
 
         {/* Results */}
@@ -157,7 +189,7 @@ function SearchContent() {
           {/* Results Count */}
           <div className="flex items-center justify-between mb-4">
             <p className="text-muted-foreground">
-              {filteredResults.length} result{filteredResults.length !== 1 ? "s" : ""} found
+              {isLoading ? "Loading..." : `${totalItems} result${totalItems !== 1 ? "s" : ""} found`}
               {query && (
                 <>
                   {" "}
@@ -168,15 +200,19 @@ function SearchContent() {
           </div>
 
           {/* Results Grid/List */}
-          {filteredResults.length > 0 ? (
+          {!isLoading && results.length > 0 ? (
             <div
               className={cn(
                 viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 lg:gap-6" : "space-y-4",
               )}
             >
-              {filteredResults.map((item) => (
+              {results.map((item) => (
                 <ContentCard key={item.imdb_id} content={item} />
               ))}
+            </div>
+          ) : isLoading ? (
+            <div className="text-center py-16">
+              <p className="text-muted-foreground">Loading...</p>
             </div>
           ) : (
             <div className="text-center py-16">

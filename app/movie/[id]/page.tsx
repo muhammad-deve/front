@@ -6,7 +6,7 @@ import { Footer } from "@/components/footer"
 import { VideoPlayer } from "@/components/video-player"
 import { CastSection } from "@/components/cast-section"
 import { ContentCarousel } from "@/components/content-carousel"
-import { allContent, mockMovies } from "@/lib/mock-data"
+import { getContentByImdb, listContent } from "@/lib/pb"
 import { formatRuntime, formatRating, formatVoteCount } from "@/lib/utils"
 import { Star, Calendar, Clock, Globe } from "lucide-react"
 import { WatchlistButton } from "@/components/watchlist-button"
@@ -17,16 +17,19 @@ interface MoviePageProps {
 
 export default async function MoviePage({ params }: MoviePageProps) {
   const { id } = await params
-  const movie = allContent.find((c) => c.imdb_id === id && c.type === "movie")
+  const movie = await getContentByImdb(id)
 
-  if (!movie) {
+  if (!movie || movie.type !== "movie") {
     notFound()
   }
 
   // Get related movies by genre
-  const relatedMovies = mockMovies
-    .filter((m) => m.imdb_id !== movie.imdb_id && m.genres.some((g) => movie.genres.includes(g)))
-    .slice(0, 10)
+  const { items: relatedMovies } = await listContent({
+		page: 1,
+		perPage: 10,
+		filter: `type="movie" && imdb_id!="${movie.imdb_id.replaceAll('"', "\\\"")}"`,
+		sort: "-vote_count",
+	})
 
   return (
     <main className="min-h-screen bg-background">

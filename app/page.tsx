@@ -2,40 +2,30 @@ import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { HeroSection } from "@/components/hero-section"
 import { ContentCarousel } from "@/components/content-carousel"
-import { mockMovies, mockTVSeries, allContent } from "@/lib/mock-data"
+import { listContent } from "@/lib/pb"
 
-export default function HomePage() {
-  // Featured content for hero
-  const featured = allContent[0]
-  const featuredItems = allContent.slice(1, 5)
+export default async function HomePage() {
+	const [{ items: trending }, { items: topRated }, { items: movies }, { items: seriesItems }] = await Promise.all([
+		listContent({ page: 1, perPage: 10, sort: "-vote_count" }),
+		listContent({ page: 1, perPage: 10, sort: "-imdb_rating" }),
+		listContent({ page: 1, perPage: 10, filter: 'type="movie"', sort: "-vote_count" }),
+		listContent({ page: 1, perPage: 10, filter: 'type="serie"', sort: "-vote_count" }),
+	])
 
-  // Content sections
-  const trending = [...allContent].sort((a, b) => (b.rating?.voteCount || 0) - (a.rating?.voteCount || 0)).slice(0, 10)
-
-  const topRated = [...allContent]
-    .sort((a, b) => (b.rating?.aggregateRating || 0) - (a.rating?.aggregateRating || 0))
-    .slice(0, 10)
-
-  const actionContent = allContent.filter((c) => c.genres.some((g) => ["Action", "Adventure"].includes(g)))
-
-  const dramaContent = allContent.filter((c) => c.genres.some((g) => ["Drama", "Romance"].includes(g)))
-
-  const sciFiContent = allContent.filter((c) => c.genres.some((g) => ["Sci-Fi", "Fantasy"].includes(g)))
+	const featured = topRated[0] || trending[0] || movies[0] || seriesItems[0]
+	const featuredItems = topRated.slice(1, 5)
 
   return (
     <main className="min-h-screen bg-background">
       <Header />
 
-      <HeroSection content={featured} featuredItems={featuredItems} />
+      {featured && <HeroSection content={featured} featuredItems={featuredItems} />}
 
       <div className="container mx-auto px-4 py-8 space-y-12">
         <ContentCarousel title="Trending Now" items={trending} />
-        <ContentCarousel title="Popular Movies" items={mockMovies} />
-        <ContentCarousel title="Top Rated TV Series" items={mockTVSeries} />
+        <ContentCarousel title="Popular Movies" items={movies} />
+        <ContentCarousel title="Top Rated TV Series" items={seriesItems} />
         <ContentCarousel title="Top Rated" items={topRated} />
-        <ContentCarousel title="Action & Adventure" items={actionContent} />
-        <ContentCarousel title="Drama & Romance" items={dramaContent} />
-        <ContentCarousel title="Sci-Fi & Fantasy" items={sciFiContent} />
       </div>
 
       <Footer />

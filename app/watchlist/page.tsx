@@ -4,15 +4,39 @@ import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ContentCard } from "@/components/content-card"
 import { useAuth } from "@/components/auth-provider"
-import { allContent } from "@/lib/mock-data"
+import { getContentByImdb } from "@/lib/pb"
 import { Heart, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { useEffect, useState } from "react"
+import type { Content } from "@/lib/types"
 
 export default function WatchlistPage() {
   const { user, isAuthenticated } = useAuth()
+	const [watchlistContent, setWatchlistContent] = useState<Content[]>([])
+	const [isLoading, setIsLoading] = useState(false)
 
-  const watchlistContent = allContent.filter((c) => user?.watchlist.includes(c.imdb_id))
+	useEffect(() => {
+		let cancelled = false
+		const ids = user?.watchlist || []
+		if (!isAuthenticated || ids.length === 0) {
+			setWatchlistContent([])
+			return
+		}
+		setIsLoading(true)
+		Promise.all(ids.map((id) => getContentByImdb(id)))
+			.then((items) => {
+				if (cancelled) return
+				setWatchlistContent(items.filter(Boolean) as Content[])
+			})
+			.finally(() => {
+				if (cancelled) return
+				setIsLoading(false)
+			})
+		return () => {
+			cancelled = true
+		}
+	}, [isAuthenticated, user?.watchlist])
 
   if (!isAuthenticated) {
     return (
@@ -59,7 +83,11 @@ export default function WatchlistPage() {
         </div>
 
         {/* Content Grid */}
-        {watchlistContent.length > 0 ? (
+        {isLoading ? (
+          <div className="text-center py-16">
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        ) : watchlistContent.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 lg:gap-6">
             {watchlistContent.map((content) => (
               <ContentCard key={content.imdb_id} content={content} />

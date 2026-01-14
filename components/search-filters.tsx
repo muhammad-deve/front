@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
-import { genres } from "@/lib/mock-data"
 import { X } from "lucide-react"
 
 interface SearchFiltersProps {
+  genres: string[]
   filters: {
     type: string
     genre: string
@@ -19,7 +19,7 @@ interface SearchFiltersProps {
   onReset: () => void
 }
 
-export function SearchFilters({ filters, onFilterChange, onReset }: SearchFiltersProps) {
+export function SearchFilters({ genres, filters, onFilterChange, onReset }: SearchFiltersProps) {
   const currentYear = new Date().getFullYear()
 
   return (
@@ -56,7 +56,7 @@ export function SearchFilters({ filters, onFilterChange, onReset }: SearchFilter
           </SelectTrigger>
           <SelectContent className="bg-card border-border">
             <SelectItem value="all">All Genres</SelectItem>
-            {genres.map((genre) => (
+            {genres.map((genre: string) => (
               <SelectItem key={genre} value={genre.toLowerCase()}>
                 {genre}
               </SelectItem>

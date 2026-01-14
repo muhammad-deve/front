@@ -6,7 +6,7 @@ import { Footer } from "@/components/footer"
 import { VideoPlayer } from "@/components/video-player"
 import { CastSection } from "@/components/cast-section"
 import { ContentCarousel } from "@/components/content-carousel"
-import { allContent, mockTVSeries } from "@/lib/mock-data"
+import { getContentByImdb, listContent } from "@/lib/pb"
 import { formatRuntime, formatRating, formatVoteCount } from "@/lib/utils"
 import { Star, Calendar, Clock, Tv } from "lucide-react"
 import { WatchlistButton } from "@/components/watchlist-button"
@@ -17,16 +17,19 @@ interface SeriesPageProps {
 
 export default async function SeriesPage({ params }: SeriesPageProps) {
   const { id } = await params
-  const series = allContent.find((c) => c.imdb_id === id && c.type === "tv")
+  const series = await getContentByImdb(id)
 
-  if (!series) {
+  if (!series || series.type !== "tv") {
     notFound()
   }
 
   // Get related series by genre
-  const relatedSeries = mockTVSeries
-    .filter((s) => s.imdb_id !== series.imdb_id && s.genres.some((g) => series.genres.includes(g)))
-    .slice(0, 10)
+  const { items: relatedSeries } = await listContent({
+		page: 1,
+		perPage: 10,
+		filter: `type="serie" && imdb_id!="${series.imdb_id.replaceAll('"', "\\\"")}"`,
+		sort: "-vote_count",
+	})
 
   return (
     <main className="min-h-screen bg-background">

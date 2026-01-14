@@ -1,10 +1,17 @@
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ContentCard } from "@/components/content-card"
-import { mockMovies } from "@/lib/mock-data"
+import { listContent } from "@/lib/pb"
 import { Film } from "lucide-react"
 
-export default function MoviesPage() {
+export default async function MoviesPage() {
+	const { items: movies, totalItems } = await listContent({
+		page: 1,
+		perPage: 120,
+		filter: 'type="movie"',
+		sort: "-vote_count",
+	})
+
   return (
     <main className="min-h-screen bg-background">
       <Header />
@@ -17,13 +24,13 @@ export default function MoviesPage() {
           </div>
           <div>
             <h1 className="text-3xl font-bold text-foreground">Movies</h1>
-            <p className="text-muted-foreground">Browse our collection of {mockMovies.length} movies</p>
+            <p className="text-muted-foreground">Browse our collection of {totalItems} movies</p>
           </div>
         </div>
 
         {/* Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 lg:gap-6">
-          {mockMovies.map((movie) => (
+          {movies.map((movie) => (
             <ContentCard key={movie.imdb_id} content={movie} />
           ))}
         </div>
