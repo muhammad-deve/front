@@ -6,10 +6,10 @@ import { listContent } from "@/lib/pb"
 
 export default async function HomePage() {
 	const [{ items: trending }, { items: topRated }, { items: movies }, { items: seriesItems }] = await Promise.all([
-		listContent({ page: 1, perPage: 10, sort: "-vote_count" }),
-		listContent({ page: 1, perPage: 10, sort: "-imdb_rating" }),
-		listContent({ page: 1, perPage: 10, filter: 'type="movie"', sort: "-vote_count" }),
-		listContent({ page: 1, perPage: 10, filter: 'type="serie"', sort: "-vote_count" }),
+		listContent({ page: 1, perPage: 15, sort: "-vote_count" }),
+		listContent({ page: 1, perPage: 15, sort: "-imdb_rating" }),
+		listContent({ page: 1, perPage: 15, filter: 'type="movie"', sort: "-vote_count" }),
+		listContent({ page: 1, perPage: 15, filter: 'type="serie"', sort: "-vote_count" }),
 	])
 
 	const featured = topRated[0] || trending[0] || movies[0] || seriesItems[0]

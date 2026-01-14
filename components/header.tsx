@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Search, Menu, X, User, LogOut, Heart, Play } from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function Header() {
   const { user, isAuthenticated, signOut } = useAuth()
@@ -92,6 +93,9 @@ export function Header() {
                 </Button>
               )}
             </div>
+
+			{/* Theme */}
+			<ThemeToggle />
 
             {/* User Menu */}
             {isAuthenticated ? (

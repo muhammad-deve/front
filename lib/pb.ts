@@ -1,4 +1,4 @@
-import type { Content, VideoSources } from "./types"
+import type { Content, Person, VideoSources } from "./types"
 
 type PBListResp<T> = {
   page: number
@@ -24,6 +24,7 @@ type PBMovieExpand = {
 }
 
 type PBMovieRecord = {
+  id: string
   imdb_id?: string
   tmdb_id?: string
   title?: string
@@ -35,6 +36,17 @@ type PBMovieRecord = {
   imdb_rating?: number
   vote_count?: number
   expand?: PBMovieExpand
+}
+
+type PBPersonRecord = {
+  id: string
+  imdb_id?: string
+  name?: string
+  professions?: string[]
+  profession?: string
+  img_url?: string
+  img_width?: number
+  img_height?: number
 }
 
 type PBGenreRecord = {
@@ -118,6 +130,73 @@ function movieRecordToContent(r: PBMovieRecord): Content {
   }
 }
 
+function personRecordToPerson(r: PBPersonRecord): Person | null {
+  const displayName = (r.name || "").trim()
+  if (!displayName) return null
+  const id = (r.imdb_id || "").trim() || r.id
+  return {
+    id,
+    displayName,
+    primaryImage:
+      r.img_url && typeof r.img_url === "string" && r.img_url.trim()
+        ? {
+            url: r.img_url.trim(),
+            width: typeof r.img_width === "number" ? r.img_width : 0,
+            height: typeof r.img_height === "number" ? r.img_height : 0,
+          }
+        : undefined,
+  }
+}
+
+async function listPeopleByMovieRecordId(movieRecordId: string): Promise<{
+  directors: Person[]
+  writers: Person[]
+  stars: Person[]
+}> {
+  const id = movieRecordId.trim()
+  if (!id) return { directors: [], writers: [], stars: [] }
+
+  const fetchWithFilter = async (filter: string) =>
+    pbGetJSON<PBListResp<PBPersonRecord>>(pbApiBasePath() + "/people", {
+      page: 1,
+      perPage: 200,
+      filter,
+      sort: "name",
+      fields: "id,imdb_id,name,professions,profession,img_url,img_width,img_height",
+    })
+
+  // Some schemas use single-select relation (movie_id="...") while others use multi-select (movie_id ?= "...").
+  let resp = await fetchWithFilter(`movie_id="${id.replaceAll('"', "\\\"")}"`)
+  if (!resp.items || resp.items.length === 0) {
+    resp = await fetchWithFilter(`movie_id ?= "${id.replaceAll('"', "\\\"")}"`)
+  }
+
+  const directors: Person[] = []
+  const writers: Person[] = []
+  const stars: Person[] = []
+
+  for (const r of resp.items) {
+    const p = personRecordToPerson(r)
+    if (!p) continue
+
+    const profSet = new Set<string>()
+    if (Array.isArray(r.professions)) {
+      for (const it of r.professions) {
+        if (typeof it === "string" && it.trim()) profSet.add(it.trim().toLowerCase())
+      }
+    }
+    if (typeof r.profession === "string" && r.profession.trim()) {
+      profSet.add(r.profession.trim().toLowerCase())
+    }
+
+    if (profSet.has("director")) directors.push(p)
+    if (profSet.has("writer") || profSet.has("scenarist") || profSet.has("assistant")) writers.push(p)
+    if (profSet.has("actor") || profSet.has("actress")) stars.push(p)
+  }
+
+  return { directors, writers, stars }
+}
+
 async function pbGetJSON<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
   const isProxy = path.startsWith("/api/pb/")
 	const isServer = typeof window === "undefined"
@@ -180,7 +259,15 @@ export async function getContentByImdb(imdbId: string): Promise<Content | null> 
   const rec = resp.items[0]
   if (!rec) return null
   const c = movieRecordToContent(rec)
-  return c.imdb_id ? c : null
+  if (!c.imdb_id) return null
+
+  const people = await listPeopleByMovieRecordId(rec.id)
+  return {
+    ...c,
+    directors: people.directors,
+    writers: people.writers,
+    stars: people.stars,
+  }
 }
 
 export async function listGenres(): Promise<Array<{ id: string; name: string }>> {

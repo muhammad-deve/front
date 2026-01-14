@@ -171,11 +171,25 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 <WatchlistButton contentId={movie.imdb_id} className="w-full" />
               </div>
 
+              {/* People */}
+              {movie.directors && movie.directors.length > 0 && (
+                <div className="pt-4">
+                  <CastSection cast={movie.directors} title="Directors" />
+                </div>
+              )}
+              {movie.writers && movie.writers.length > 0 && (
+                <div className="pt-4">
+                  <CastSection cast={movie.writers} title="Writers" />
+                </div>
+              )}
+
               {/* Video Player */}
               {movie.primaryVideo && Object.values(movie.primaryVideo).some(Boolean) && (
                 <div className="pt-4">
                   <h2 className="text-xl font-bold text-foreground mb-4">Watch Now</h2>
-                  <VideoPlayer sources={movie.primaryVideo} title={movie.title} />
+                  <div className="max-w-3xl mx-auto">
+                    <VideoPlayer sources={movie.primaryVideo} title={movie.title} />
+                  </div>
                 </div>
               )}
 

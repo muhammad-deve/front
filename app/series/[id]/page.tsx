@@ -141,11 +141,25 @@ export default async function SeriesPage({ params }: SeriesPageProps) {
                 <WatchlistButton contentId={series.imdb_id} className="w-full" />
               </div>
 
+              {/* People */}
+              {series.directors && series.directors.length > 0 && (
+                <div className="pt-4">
+                  <CastSection cast={series.directors} title="Directors" />
+                </div>
+              )}
+              {series.writers && series.writers.length > 0 && (
+                <div className="pt-4">
+                  <CastSection cast={series.writers} title="Writers" />
+                </div>
+              )}
+
               {/* Video Player */}
               {series.primaryVideo && Object.values(series.primaryVideo).some(Boolean) && (
                 <div className="pt-4">
                   <h2 className="text-xl font-bold text-foreground mb-4">Watch Now</h2>
-                  <VideoPlayer sources={series.primaryVideo} title={series.title} />
+                  <div className="max-w-3xl mx-auto">
+                    <VideoPlayer sources={series.primaryVideo} title={series.title} />
+                  </div>
                 </div>
               )}
 
