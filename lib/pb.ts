@@ -36,6 +36,8 @@ type PBMovieRecord = {
   duration?: number
   imdb_rating?: number
   vote_count?: number
+  genre_id?: string[]
+  country_id?: string[]
   expand?: PBMovieExpand
 }
 
@@ -97,6 +99,14 @@ function movieRecordToContent(r: PBMovieRecord): Content {
   const exp = r.expand || {}
   const c = exp.content_id
 
+  const genreIds = Array.isArray(r.genre_id)
+    ? r.genre_id.map((g) => (typeof g === "string" ? g.trim() : "")).filter(Boolean)
+    : []
+
+  const countryIds = Array.isArray(r.country_id)
+    ? r.country_id.map((cc) => (typeof cc === "string" ? cc.trim() : "")).filter(Boolean)
+    : []
+
   const primaryVideo: VideoSources | undefined = c
     ? {
         vidsrc_url: c.vidsrc_url || undefined,
@@ -132,6 +142,7 @@ function movieRecordToContent(r: PBMovieRecord): Content {
     startYear: typeof r.released_year === "number" ? r.released_year : undefined,
     runtimeSeconds: typeof r.duration === "number" ? r.duration : undefined,
     genres,
+    genreIds: genreIds.length > 0 ? genreIds : undefined,
     rating: ratingValue > 0 || voteCount > 0 ? { aggregateRating: ratingValue, voteCount } : undefined,
     plot: (r.plot || "").trim() || undefined,
     primaryImage:
@@ -147,6 +158,7 @@ function movieRecordToContent(r: PBMovieRecord): Content {
     writers: [],
     stars: [],
     originCountries: countries,
+    countryIds: countryIds.length > 0 ? countryIds : undefined,
   }
 }
 

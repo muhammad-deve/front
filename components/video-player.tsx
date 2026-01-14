@@ -57,38 +57,41 @@ export function VideoPlayer({ sources, title }: VideoPlayerProps) {
   return (
     <div className="space-y-4">
       {/* Controls */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="grid grid-cols-3 items-center gap-4">
+        <div />
         {/* Server Switcher */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary" className="gap-2">
-              <Server className="w-4 h-4" />
-              {serverNames[activeServer]}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="bg-card border-border">
-            {availableServers.map(([key]) => (
-              <DropdownMenuItem
-                key={key}
-                onClick={() => {
-                  setActiveServer(key)
-                  setHasError(false)
-                }}
-                className={cn("cursor-pointer", activeServer === key && "bg-primary/20 text-primary")}
-              >
-                {serverNames[key]}
-                {activeServer === key && <span className="ml-auto text-xs text-primary">Active</span>}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="justify-self-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="secondary" className="gap-2">
+                <Server className="w-4 h-4" />
+                {serverNames[activeServer]}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="bg-card border-border">
+              {availableServers.map(([key]) => (
+                <DropdownMenuItem
+                  key={key}
+                  onClick={() => {
+                    setActiveServer(key)
+                    setHasError(false)
+                  }}
+                  className={cn("cursor-pointer", activeServer === key && "bg-primary/20 text-primary")}
+                >
+                  {serverNames[key]}
+                  {activeServer === key && <span className="ml-auto text-xs text-primary">Active</span>}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         {/* Fullscreen */}
         <Button
           variant="ghost"
           size="icon"
           onClick={handleFullscreen}
-          className="text-muted-foreground hover:text-foreground"
+          className="justify-self-end text-muted-foreground hover:text-foreground"
         >
           <Maximize className="w-5 h-5" />
         </Button>

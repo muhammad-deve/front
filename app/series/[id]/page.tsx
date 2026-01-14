@@ -6,7 +6,8 @@ import { Footer } from "@/components/footer"
 import { VideoPlayer } from "@/components/video-player"
 import { CastSection } from "@/components/cast-section"
 import { ContentCarousel } from "@/components/content-carousel"
-import { getContentByImdb, listContent } from "@/lib/pb"
+import { RelatedContentSection } from "@/components/related-content-section"
+import { getContentByImdb } from "@/lib/pb"
 import { formatRuntime, formatRating, formatVoteCount } from "@/lib/utils"
 import { Star, Calendar, Clock, Tv } from "lucide-react"
 import { WatchlistButton } from "@/components/watchlist-button"
@@ -22,14 +23,6 @@ export default async function SeriesPage({ params }: SeriesPageProps) {
   if (!series || series.type !== "tv") {
     notFound()
   }
-
-  // Get related series by genre
-  const { items: relatedSeries } = await listContent({
-		page: 1,
-		perPage: 10,
-		filter: `type="serie" && imdb_id!="${series.imdb_id.replaceAll('"', "\\\"")}"`,
-		sort: "-vote_count",
-	})
 
   return (
     <main className="min-h-screen bg-background">
@@ -172,12 +165,14 @@ export default async function SeriesPage({ params }: SeriesPageProps) {
             </div>
           </div>
 
-          {/* Related Content */}
-          {relatedSeries.length > 0 && (
-            <div className="mt-16">
-              <ContentCarousel title="More Like This" items={relatedSeries} />
-            </div>
-          )}
+          <RelatedContentSection
+            currentImdbId={series.imdb_id}
+            pbType="serie"
+            title="More Like This"
+            genreIds={series.genreIds}
+            countryIds={series.countryIds}
+            allHref="/series"
+          />
         </div>
       </div>
 

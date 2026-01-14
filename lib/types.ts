@@ -48,6 +48,7 @@ export interface Content {
   startYear?: number
   runtimeSeconds?: number
   genres: string[]
+  genreIds?: string[]
   rating?: Rating
   plot?: string
   primaryImage?: ImageData
@@ -57,6 +58,7 @@ export interface Content {
   writers?: Person[]
   stars?: Person[]
   originCountries?: string[]
+  countryIds?: string[]
   spokenLanguages?: string[]
   interests?: string[]
   seasons?: Season[]

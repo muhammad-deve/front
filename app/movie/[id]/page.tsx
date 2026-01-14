@@ -6,7 +6,8 @@ import { Footer } from "@/components/footer"
 import { VideoPlayer } from "@/components/video-player"
 import { CastSection } from "@/components/cast-section"
 import { ContentCarousel } from "@/components/content-carousel"
-import { getContentByImdb, listContent } from "@/lib/pb"
+import { RelatedContentSection } from "@/components/related-content-section"
+import { getContentByImdb } from "@/lib/pb"
 import { formatRuntime, formatRating, formatVoteCount } from "@/lib/utils"
 import { Star, Calendar, Clock, Globe } from "lucide-react"
 import { WatchlistButton } from "@/components/watchlist-button"
@@ -22,14 +23,6 @@ export default async function MoviePage({ params }: MoviePageProps) {
   if (!movie || movie.type !== "movie") {
     notFound()
   }
-
-  // Get related movies by genre
-  const { items: relatedMovies } = await listContent({
-		page: 1,
-		perPage: 10,
-		filter: `type="movie" && imdb_id!="${movie.imdb_id.replaceAll('"', "\\\"")}"`,
-		sort: "-vote_count",
-	})
 
   return (
     <main className="min-h-screen bg-background">
@@ -202,12 +195,14 @@ export default async function MoviePage({ params }: MoviePageProps) {
             </div>
           </div>
 
-          {/* Related Content */}
-          {relatedMovies.length > 0 && (
-            <div className="mt-16">
-              <ContentCarousel title="More Like This" items={relatedMovies} />
-            </div>
-          )}
+          <RelatedContentSection
+            currentImdbId={movie.imdb_id}
+            pbType="movie"
+            title="More Like This"
+            genreIds={movie.genreIds}
+            countryIds={movie.countryIds}
+            allHref="/movies"
+          />
         </div>
       </div>
 
