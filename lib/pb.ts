@@ -45,6 +45,7 @@ type PBPersonRecord = {
   name?: string
   professions?: string[]
   profession?: string
+  "professions_as________________"?: string
   img_url?: string
   img_width?: number
   img_height?: number
@@ -69,7 +70,7 @@ type PBChannelRecord = {
   }
 }
 
-let peopleHasContentsField = false
+let peopleHasContentsField: boolean | null = null
 
 function pbBaseUrl(): string {
   return process.env.NEXT_PUBLIC_PB_URL || process.env.PB_URL || "http://127.0.0.1:8090"
@@ -106,10 +107,14 @@ function movieRecordToContent(r: PBMovieRecord): Content {
       }
     : undefined
 
-  const genres = (exp.genre_id || [])
+  const genresRaw = (exp.genre_id || [])
     .map((g) => (g.name || "").trim())
     .filter(Boolean)
     .map(toDisplayGenreName)
+
+  const genres = Array.from(
+    new Map(genresRaw.map((g) => [g.toLowerCase(), g] as const)).values(),
+  )
 
   const countries = (exp.country_id || [])
     .map((cc) => (cc.name || cc.code || "").trim())
@@ -160,10 +165,48 @@ function personRecordToPerson(r: PBPersonRecord): Person | null {
             height: typeof r.img_height === "number" ? r.img_height : 0,
           }
         : undefined,
+    professions: extractProfessions(r),
   }
 }
 
-async function listPeopleByMovieRecordId(movieRecordId: string): Promise<{
+function normalizeProfessionToken(token: string): string | null {
+  const t = token.trim().toLowerCase()
+  if (!t) return null
+  if (t === "actor" || t === "actress" || t === "cast") return "actor"
+  if (t === "director" || t === "directing") return "director"
+  if (t === "writer" || t === "screenwriter" || t === "scenarist" || t === "writing") return "writer"
+  if (t === "producer" || t === "executive producer" || t === "executive_producer") return "producer"
+  return t
+}
+
+function extractProfessions(r: PBPersonRecord): string[] {
+  const out: string[] = []
+
+  if (Array.isArray(r.professions)) {
+    for (const it of r.professions) {
+      if (typeof it !== "string") continue
+      const n = normalizeProfessionToken(it)
+      if (n) out.push(n)
+    }
+  }
+
+  if (typeof r.profession === "string") {
+    const n = normalizeProfessionToken(r.profession)
+    if (n) out.push(n)
+  }
+
+  if (typeof r["professions_as________________"] === "string" && r["professions_as________________"].trim()) {
+    const raw = r["professions_as________________"].trim()
+    for (const it of raw.split(/[,/|]/g)) {
+      const n = normalizeProfessionToken(it)
+      if (n) out.push(n)
+    }
+  }
+
+  return Array.from(new Set(out))
+}
+
+async function listPeopleByMovieRecordId(movieRecordId: string, imdbId?: string): Promise<{
   directors: Person[]
   writers: Person[]
   stars: Person[]
@@ -177,13 +220,30 @@ async function listPeopleByMovieRecordId(movieRecordId: string): Promise<{
       perPage: 200,
       filter,
       sort: "name",
-      fields: "id,imdb_id,name,professions,profession,img_url,img_width,img_height",
+      fields: "id,imdb_id,name,professions,profession,professions_as________________,img_url,img_width,img_height",
     })
 
-  // Some schemas use single-select relation (movie_id="...") while others use multi-select (movie_id ?= "...").
-  let resp = await fetchWithFilter(`movie_id="${id.replaceAll('"', "\\\"")}"`)
-  if (!resp.items || resp.items.length === 0) {
-    resp = await fetchWithFilter(`movie_id ?= "${id.replaceAll('"', "\\\"")}"`)
+  const candidates = [id, (imdbId || "").trim()].filter(Boolean)
+  const ops = [
+    (v: string) => `movie_id="${v}"`,
+    (v: string) => `movie_id ?= "${v}"`,
+    (v: string) => `movie_id ~ "${v}"`,
+  ]
+
+  let resp: PBListResp<PBPersonRecord> = { page: 1, perPage: 200, totalItems: 0, totalPages: 0, items: [] }
+  outer: for (const cand of candidates) {
+    const escaped = cand.replaceAll('"', "\\\"")
+    for (const op of ops) {
+      try {
+        const r = await fetchWithFilter(op(escaped))
+        if (r.items && r.items.length > 0) {
+          resp = r
+          break outer
+        }
+      } catch {
+        continue
+      }
+    }
   }
 
   const directors: Person[] = []
@@ -194,19 +254,15 @@ async function listPeopleByMovieRecordId(movieRecordId: string): Promise<{
     const p = personRecordToPerson(r)
     if (!p) continue
 
-    const profSet = new Set<string>()
-    if (Array.isArray(r.professions)) {
-      for (const it of r.professions) {
-        if (typeof it === "string" && it.trim()) profSet.add(it.trim().toLowerCase())
-      }
-    }
-    if (typeof r.profession === "string" && r.profession.trim()) {
-      profSet.add(r.profession.trim().toLowerCase())
-    }
+    const profSet = new Set(p.professions || [])
+    const hasDirector = profSet.has("director")
+    const hasWriter = profSet.has("writer")
+    const hasActor = profSet.has("actor")
 
-    if (profSet.has("director")) directors.push(p)
-    if (profSet.has("writer") || profSet.has("scenarist") || profSet.has("assistant")) writers.push(p)
-    if (profSet.has("actor") || profSet.has("actress")) stars.push(p)
+    if (hasDirector) directors.push(p)
+    else if (hasWriter && !hasActor) writers.push(p)
+    else if (hasActor) stars.push(p)
+    else stars.push(p)
   }
 
   return { directors, writers, stars }
@@ -249,7 +305,7 @@ async function listPeopleByContentRecordId(contentRecordId: string): Promise<PBP
       perPage: 200,
       filter,
       sort: "name",
-      fields: "id,imdb_id,name,professions,profession,img_url,img_width,img_height,movie_id",
+      fields: "id,imdb_id,name,professions,profession,professions_as________________,img_url,img_width,img_height,movie_id",
     })
 
   try {
@@ -257,6 +313,8 @@ async function listPeopleByContentRecordId(contentRecordId: string): Promise<PBP
     if (!resp.items || resp.items.length === 0) {
       resp = await fetchWithFilter(`contents ?= "${cid.replaceAll('"', "\\\"")}"`)
     }
+
+    if (peopleHasContentsField === null) peopleHasContentsField = true
 
     return resp.items || []
   } catch (err) {
@@ -268,13 +326,17 @@ async function listPeopleByContentRecordId(contentRecordId: string): Promise<PBP
   }
 }
 
-async function listPeopleForMovie(movieRecordId: string, contentRecordId?: string): Promise<{
+async function listPeopleForMovie(movieRecordId: string, imdbId?: string, contentRecordId?: string): Promise<{
   directors: Person[]
   writers: Person[]
   stars: Person[]
 }> {
-  const moviePeople = await listPeopleByMovieRecordId(movieRecordId)
+  const moviePeople = await listPeopleByMovieRecordId(movieRecordId, imdbId)
   if (!contentRecordId) return moviePeople
+
+  if (moviePeople.directors.length > 0 || moviePeople.writers.length > 0 || moviePeople.stars.length > 0) {
+    return moviePeople
+  }
 
   const extra = await listPeopleByContentRecordId(contentRecordId)
   if (extra.length === 0) return moviePeople
@@ -298,19 +360,15 @@ async function listPeopleForMovie(movieRecordId: string, contentRecordId?: strin
     const p = personRecordToPerson(r)
     if (!p) continue
 
-    const profSet = new Set<string>()
-    if (Array.isArray(r.professions)) {
-      for (const it of r.professions) {
-        if (typeof it === "string" && it.trim()) profSet.add(it.trim().toLowerCase())
-      }
-    }
-    if (typeof r.profession === "string" && r.profession.trim()) {
-      profSet.add(r.profession.trim().toLowerCase())
-    }
+    const profSet = new Set(p.professions || [])
+    const hasDirector = profSet.has("director")
+    const hasWriter = profSet.has("writer")
+    const hasActor = profSet.has("actor")
 
-    if (profSet.has("director")) pushUnique(directors, p)
-    if (profSet.has("writer") || profSet.has("scenarist") || profSet.has("assistant")) pushUnique(writers, p)
-    if (profSet.has("actor") || profSet.has("actress")) pushUnique(stars, p)
+    if (hasDirector) pushUnique(directors, p)
+    else if (hasWriter && !hasActor) pushUnique(writers, p)
+    else if (hasActor) pushUnique(stars, p)
+    else pushUnique(stars, p)
   }
 
   return { directors, writers, stars }
@@ -380,7 +438,7 @@ export async function getContentByImdb(imdbId: string): Promise<Content | null> 
   const c = movieRecordToContent(rec)
   if (!c.imdb_id) return null
 
-  const people = await listPeopleForMovie(rec.id, rec.content_id)
+  const people = await listPeopleForMovie(rec.id, id, rec.content_id)
   return {
     ...c,
     directors: people.directors,
@@ -398,7 +456,7 @@ export async function getPersonById(idOrImdb: string): Promise<{ person: Person;
     page: 1,
     perPage: 1,
     filter: `id="${escaped}" || imdb_id="${escaped}"`,
-    fields: "id,imdb_id,name,professions,profession,img_url,img_width,img_height,movie_id",
+    fields: "id,imdb_id,name,professions,profession,professions_as________________,img_url,img_width,img_height,movie_id",
   })
 
   const rec = resp.items[0]
@@ -436,9 +494,17 @@ export async function listGenres(): Promise<Array<{ id: string; name: string }>>
     sort: "name",
   })
 
-  return resp.items
-    .map((g) => ({ id: g.id, name: toDisplayGenreName((g.name || "").trim()) }))
-    .filter((g) => g.id && g.name)
+  const out: Array<{ id: string; name: string }> = []
+  const seen = new Set<string>()
+  for (const g of resp.items) {
+    const name = toDisplayGenreName((g.name || "").trim())
+    if (!g.id || !name) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ id: g.id, name })
+  }
+  return out
 }
 
 export async function listChannels(opts?: {

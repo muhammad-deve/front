@@ -21,6 +21,7 @@ export interface Person {
   id: string
   displayName: string
   primaryImage?: ImageData
+  professions?: string[]
 }
 
 export interface Episode {
