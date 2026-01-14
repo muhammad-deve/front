@@ -55,7 +55,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
         </div>
 
         {/* Content */}
-        <div className="relative container mx-auto px-4 pt-24 lg:pt-32">
+        <div className="relative mx-auto w-full max-w-7xl 2xl:max-w-[1600px] px-4 pt-24 lg:pt-32">
           <div className="grid lg:grid-cols-[300px_1fr] gap-8">
             {/* Poster */}
             <div className="hidden lg:block">
@@ -183,20 +183,20 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 </div>
               )}
 
-              {/* Video Player */}
-              {movie.primaryVideo && Object.values(movie.primaryVideo).some(Boolean) && (
-                <div className="pt-4">
-                  <h2 className="text-xl font-bold text-foreground mb-4">Watch Now</h2>
-                  <div className="max-w-3xl mx-auto">
-                    <VideoPlayer sources={movie.primaryVideo} title={movie.title} />
-                  </div>
-                </div>
-              )}
-
               {/* Cast */}
               {movie.stars && movie.stars.length > 0 && (
                 <div className="pt-4">
                   <CastSection cast={movie.stars} />
+                </div>
+              )}
+
+              {/* Video Player */}
+              {movie.primaryVideo && Object.values(movie.primaryVideo).some(Boolean) && (
+                <div className="pt-4">
+                  <h2 className="text-xl font-bold text-foreground mb-4">Watch Now</h2>
+                  <div className="max-w-5xl mx-auto w-full">
+                    <VideoPlayer sources={movie.primaryVideo} title={movie.title} />
+                  </div>
                 </div>
               )}
             </div>

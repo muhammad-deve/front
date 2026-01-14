@@ -56,31 +56,6 @@ export function VideoPlayer({ sources, title }: VideoPlayerProps) {
 
   return (
     <div className="space-y-4">
-      {/* Video Container */}
-      <div className="relative aspect-video bg-background rounded-xl overflow-hidden border border-border">
-        {hasError ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-muted">
-            <div className="text-center">
-              <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground mb-4">Failed to load video</p>
-              <Button variant="secondary" onClick={() => setHasError(false)}>
-                Try Again
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <iframe
-            id="video-iframe"
-            src={currentUrl}
-            title={title}
-            className="absolute inset-0 w-full h-full"
-            allowFullScreen
-            allow="autoplay; encrypted-media; picture-in-picture"
-            onError={() => setHasError(true)}
-          />
-        )}
-      </div>
-
       {/* Controls */}
       <div className="flex items-center justify-between gap-4">
         {/* Server Switcher */}
@@ -117,6 +92,31 @@ export function VideoPlayer({ sources, title }: VideoPlayerProps) {
         >
           <Maximize className="w-5 h-5" />
         </Button>
+      </div>
+
+      {/* Video Container */}
+      <div className="relative aspect-video bg-background rounded-xl overflow-hidden border border-border">
+        {hasError ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-muted">
+            <div className="text-center">
+              <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground mb-4">Failed to load video</p>
+              <Button variant="secondary" onClick={() => setHasError(false)}>
+                Try Again
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <iframe
+            id="video-iframe"
+            src={currentUrl}
+            title={title}
+            className="absolute inset-0 w-full h-full"
+            allowFullScreen
+            allow="autoplay; encrypted-media; picture-in-picture"
+            onError={() => setHasError(true)}
+          />
+        )}
       </div>
     </div>
   )
