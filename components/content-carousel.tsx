@@ -25,33 +25,48 @@ export function ContentCarousel({ title, items, className }: ContentCarouselProp
     setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 10)
   }
 
+  const getScrollStep = () => {
+    const el = scrollRef.current
+    if (!el) return 0
+
+    const firstItem = el.querySelector<HTMLElement>("[data-carousel-item='true']")
+    const style = window.getComputedStyle(el)
+    const gap = Number.parseFloat(style.columnGap || style.gap || "0") || 0
+
+    if (firstItem) return firstItem.offsetWidth + gap
+
+    return el.clientWidth * 0.8
+  }
+
   useEffect(() => {
     checkScroll()
     const ref = scrollRef.current
-    if (ref) {
-      ref.addEventListener("scroll", checkScroll)
-      return () => ref.removeEventListener("scroll", checkScroll)
+    if (!ref) return
+
+    ref.addEventListener("scroll", checkScroll)
+    window.addEventListener("resize", checkScroll)
+    return () => {
+      ref.removeEventListener("scroll", checkScroll)
+      window.removeEventListener("resize", checkScroll)
     }
   }, [])
+
+  useEffect(() => {
+    checkScroll()
+  }, [items.length])
 
   const scroll = (direction: "left" | "right") => {
     if (!scrollRef.current) return
 
     const el = scrollRef.current
-    const scrollAmount = el.clientWidth * 0.8
-    const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth)
+    const step = getScrollStep()
+    if (!step) return
 
-    if (direction === "right" && el.scrollLeft + el.clientWidth >= maxLeft - 10) {
-      el.scrollTo({ left: 0, behavior: "auto" })
-      return
-    }
-    if (direction === "left" && el.scrollLeft <= 10) {
-      el.scrollTo({ left: maxLeft, behavior: "auto" })
-      return
-    }
+    if (direction === "right" && !canScrollRight) return
+    if (direction === "left" && !canScrollLeft) return
 
     el.scrollBy({
-      left: direction === "left" ? -scrollAmount : scrollAmount,
+      left: direction === "left" ? -step : step,
       behavior: "smooth",
     })
   }
@@ -67,6 +82,7 @@ export function ContentCarousel({ title, items, className }: ContentCarouselProp
             variant="ghost"
             size="icon"
             onClick={() => scroll("left")}
+            disabled={!canScrollLeft}
             className="w-9 h-9 rounded-full bg-secondary/80 hover:bg-secondary text-foreground disabled:opacity-30"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -75,6 +91,7 @@ export function ContentCarousel({ title, items, className }: ContentCarouselProp
             variant="ghost"
             size="icon"
             onClick={() => scroll("right")}
+            disabled={!canScrollRight}
             className="w-9 h-9 rounded-full bg-secondary/80 hover:bg-secondary text-foreground disabled:opacity-30"
           >
             <ChevronRight className="w-5 h-5" />
@@ -84,7 +101,11 @@ export function ContentCarousel({ title, items, className }: ContentCarouselProp
 
       <div ref={scrollRef} className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 -mb-4">
         {items.map((item) => (
-          <div key={item.imdb_id} className="flex-shrink-0 w-[160px] sm:w-[180px] lg:w-[200px]">
+          <div
+            key={item.imdb_id}
+            data-carousel-item="true"
+            className="flex-shrink-0 w-[160px] sm:w-[180px] lg:w-[200px]"
+          >
             <ContentCard content={item} />
           </div>
         ))}

@@ -25,6 +25,7 @@ type PBMovieExpand = {
 
 type PBMovieRecord = {
   id: string
+  content_id?: string
   imdb_id?: string
   tmdb_id?: string
   title?: string
@@ -47,6 +48,8 @@ type PBPersonRecord = {
   img_url?: string
   img_width?: number
   img_height?: number
+  movie_id?: string | string[]
+  contents?: string | string[]
 }
 
 type PBGenreRecord = {
@@ -54,13 +57,13 @@ type PBGenreRecord = {
   name?: string
 }
 
+let peopleHasContentsField = false
+
 function pbBaseUrl(): string {
   return process.env.NEXT_PUBLIC_PB_URL || process.env.PB_URL || "http://127.0.0.1:8090"
 }
 
 function pbApiBasePath(): string {
-	// Use Next.js API proxy to avoid CORS when called from the browser.
-	// Server components can also use this safely.
 	return "/api/pb"
 }
 
@@ -197,6 +200,110 @@ async function listPeopleByMovieRecordId(movieRecordId: string): Promise<{
   return { directors, writers, stars }
 }
 
+function normalizePBRelationIds(v: unknown): string[] {
+  if (typeof v === "string") {
+    const s = v.trim()
+    return s ? [s] : []
+  }
+  if (Array.isArray(v)) {
+    const out: string[] = []
+    for (const it of v) {
+      if (typeof it === "string" && it.trim()) out.push(it.trim())
+    }
+    return out
+  }
+  return []
+}
+
+function buildOrEqualsFilter(field: string, ids: string[]): string {
+  const parts = ids
+    .map((id) => id.trim())
+    .filter(Boolean)
+    .map((id) => `${field}="${id.replaceAll('"', "\\\"")}"`)
+  if (parts.length === 0) return ""
+  if (parts.length === 1) return parts[0]
+  return `(${parts.join(" || ")})`
+}
+
+async function listPeopleByContentRecordId(contentRecordId: string): Promise<PBPersonRecord[]> {
+  const cid = contentRecordId.trim()
+  if (!cid) return []
+
+  if (peopleHasContentsField === false) return []
+
+  const fetchWithFilter = async (filter: string) =>
+    pbGetJSON<PBListResp<PBPersonRecord>>(pbApiBasePath() + "/people", {
+      page: 1,
+      perPage: 200,
+      filter,
+      sort: "name",
+      fields: "id,imdb_id,name,professions,profession,img_url,img_width,img_height,movie_id",
+    })
+
+  try {
+    let resp = await fetchWithFilter(`contents="${cid.replaceAll('"', "\\\"")}"`)
+    if (!resp.items || resp.items.length === 0) {
+      resp = await fetchWithFilter(`contents ?= "${cid.replaceAll('"', "\\\"")}"`)
+    }
+
+    return resp.items || []
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : ""
+    if (/unknown field\s+"contents"/i.test(msg) || /invalid left operand\s+"contents"/i.test(msg)) {
+      peopleHasContentsField = false
+    }
+    return []
+  }
+}
+
+async function listPeopleForMovie(movieRecordId: string, contentRecordId?: string): Promise<{
+  directors: Person[]
+  writers: Person[]
+  stars: Person[]
+}> {
+  const moviePeople = await listPeopleByMovieRecordId(movieRecordId)
+  if (!contentRecordId) return moviePeople
+
+  const extra = await listPeopleByContentRecordId(contentRecordId)
+  if (extra.length === 0) return moviePeople
+
+  const seen = new Set<string>()
+  const directors: Person[] = []
+  const writers: Person[] = []
+  const stars: Person[] = []
+
+  const pushUnique = (arr: Person[], p: Person) => {
+    if (seen.has(p.id)) return
+    seen.add(p.id)
+    arr.push(p)
+  }
+
+  for (const p of moviePeople.directors) pushUnique(directors, p)
+  for (const p of moviePeople.writers) pushUnique(writers, p)
+  for (const p of moviePeople.stars) pushUnique(stars, p)
+
+  for (const r of extra) {
+    const p = personRecordToPerson(r)
+    if (!p) continue
+
+    const profSet = new Set<string>()
+    if (Array.isArray(r.professions)) {
+      for (const it of r.professions) {
+        if (typeof it === "string" && it.trim()) profSet.add(it.trim().toLowerCase())
+      }
+    }
+    if (typeof r.profession === "string" && r.profession.trim()) {
+      profSet.add(r.profession.trim().toLowerCase())
+    }
+
+    if (profSet.has("director")) pushUnique(directors, p)
+    if (profSet.has("writer") || profSet.has("scenarist") || profSet.has("assistant")) pushUnique(writers, p)
+    if (profSet.has("actor") || profSet.has("actress")) pushUnique(stars, p)
+  }
+
+  return { directors, writers, stars }
+}
+
 async function pbGetJSON<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
   const isProxy = path.startsWith("/api/pb/")
 	const isServer = typeof window === "undefined"
@@ -261,13 +368,53 @@ export async function getContentByImdb(imdbId: string): Promise<Content | null> 
   const c = movieRecordToContent(rec)
   if (!c.imdb_id) return null
 
-  const people = await listPeopleByMovieRecordId(rec.id)
+  const people = await listPeopleForMovie(rec.id, rec.content_id)
   return {
     ...c,
     directors: people.directors,
     writers: people.writers,
     stars: people.stars,
   }
+}
+
+export async function getPersonById(idOrImdb: string): Promise<{ person: Person; movieIds: string[] } | null> {
+  const q = idOrImdb.trim()
+  if (!q) return null
+
+  const escaped = q.replaceAll('"', "\\\"")
+  const resp = await pbGetJSON<PBListResp<PBPersonRecord>>(pbApiBasePath() + "/people", {
+    page: 1,
+    perPage: 1,
+    filter: `id="${escaped}" || imdb_id="${escaped}"`,
+    fields: "id,imdb_id,name,professions,profession,img_url,img_width,img_height,movie_id",
+  })
+
+  const rec = resp.items[0]
+  if (!rec) return null
+  const person = personRecordToPerson(rec)
+  if (!person) return null
+
+  return {
+    person,
+    movieIds: normalizePBRelationIds(rec.movie_id),
+  }
+}
+
+export async function listContentByPersonCredits(credits: {
+  movieIds: string[]
+}): Promise<Content[]> {
+  const idFilter = buildOrEqualsFilter("id", credits.movieIds)
+
+  if (!idFilter) return []
+
+  const { items } = await listContent({
+    page: 1,
+    perPage: 200,
+    filter: idFilter,
+    sort: "-vote_count",
+  })
+
+  return items
 }
 
 export async function listGenres(): Promise<Array<{ id: string; name: string }>> {
