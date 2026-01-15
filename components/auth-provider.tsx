@@ -1,24 +1,26 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
 import type { User } from "@/lib/types"
 
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
-  signIn: (email: string, password: string) => Promise<boolean>
-  signUp: (data: SignUpData) => Promise<boolean>
-  signOut: () => void
+  requestOtp: (email: string, purpose: "signin" | "signup") => Promise<boolean>
+  verifyOtp: (data: VerifyOtpData) => Promise<boolean>
+  signOut: () => Promise<void>
   addToWatchlist: (contentId: string) => void
   removeFromWatchlist: (contentId: string) => void
   isInWatchlist: (contentId: string) => boolean
 }
 
-interface SignUpData {
-  firstName: string
-  lastName: string
+interface VerifyOtpData {
   email: string
-  password: string
+  purpose: "signin" | "signup"
+  otp: string
+  firstName?: string
+  lastName?: string
+  password?: string
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -26,39 +28,49 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
 
-  const signIn = useCallback(async (email: string, password: string): Promise<boolean> => {
-    // Mock authentication
-    if (email && password.length >= 8) {
-      setUser({
-        id: "1",
-        email,
-        firstName: "John",
-        lastName: "Doe",
-        watchlist: [],
-        watchHistory: [],
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return
+        const u = (data as { user?: unknown } | null)?.user
+        if (u && typeof u === "object") {
+          setUser(u as User)
+        }
       })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const requestOtp = useCallback(async (email: string, purpose: "signin" | "signup"): Promise<boolean> => {
+    const res = await fetch("/api/auth/request-otp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, purpose }),
+    })
+    return res.ok
+  }, [])
+
+  const verifyOtp = useCallback(async (data: VerifyOtpData): Promise<boolean> => {
+    const res = await fetch("/api/auth/verify-otp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    })
+    if (!res.ok) return false
+    const json = (await res.json().catch(() => null)) as { user?: User } | null
+    if (json?.user) {
+      setUser(json.user)
       return true
     }
     return false
   }, [])
 
-  const signUp = useCallback(async (data: SignUpData): Promise<boolean> => {
-    // Mock sign up
-    if (data.email && data.password.length >= 8) {
-      setUser({
-        id: "1",
-        email: data.email,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        watchlist: [],
-        watchHistory: [],
-      })
-      return true
-    }
-    return false
-  }, [])
-
-  const signOut = useCallback(() => {
+  const signOut = useCallback(async () => {
+    await fetch("/api/auth/sign-out", { method: "POST" }).catch(() => {})
     setUser(null)
   }, [])
 
@@ -89,8 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isAuthenticated: !!user,
-        signIn,
-        signUp,
+        requestOtp,
+        verifyOtp,
         signOut,
         addToWatchlist,
         removeFromWatchlist,

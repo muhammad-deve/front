@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "./auth-provider"
@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Play, Eye, EyeOff, Loader2, Check, ArrowLeft, PartyPopper } from "lucide-react"
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
+import { Play, Loader2, Check, ArrowLeft, PartyPopper, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type Step = 1 | 2 | 3
@@ -37,27 +38,22 @@ const initialFormData: FormData = {
 
 export function SignUpFlow() {
   const router = useRouter()
-  const { signUp } = useAuth()
+  const { requestOtp, verifyOtp } = useAuth()
   const [step, setStep] = useState<Step>(1)
   const [formData, setFormData] = useState<FormData>(initialFormData)
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [resendCountdown, setResendCountdown] = useState(0)
   const [isComplete, setIsComplete] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  // Verification code input refs
-  const codeInputRefs = useRef<(HTMLInputElement | null)[]>([])
-
-  // Password validation
-  const passwordValidations = {
-    minLength: formData.password.length >= 8,
-    uppercase: /[A-Z]/.test(formData.password),
-    number: /[0-9]/.test(formData.password),
-    special: /[!@#$%^&*(),.?":{}|<>]/.test(formData.password),
+  const passwordRules = {
+    length: formData.password.length >= 8 && formData.password.length <= 64,
+    letter: /[A-Za-z]/.test(formData.password),
+    number: /\d/.test(formData.password),
   }
-  const isPasswordValid = Object.values(passwordValidations).every(Boolean)
+  const isPasswordValid = passwordRules.length && passwordRules.letter && passwordRules.number
   const passwordsMatch = formData.password === formData.confirmPassword && formData.confirmPassword !== ""
 
   // Countdown timer for resend
@@ -73,34 +69,24 @@ export function SignUpFlow() {
     setError("")
   }
 
-  const handleCodeChange = (index: number, value: string) => {
-    if (value.length > 1) {
-      value = value[value.length - 1]
-    }
-    if (!/^\d*$/.test(value)) return
-
-    const newCode = formData.verificationCode.split("")
-    newCode[index] = value
-    updateFormData("verificationCode", newCode.join(""))
-
-    // Auto-focus next input
-    if (value && index < 5) {
-      codeInputRefs.current[index + 1]?.focus()
-    }
-  }
-
-  const handleCodeKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !formData.verificationCode[index] && index > 0) {
-      codeInputRefs.current[index - 1]?.focus()
+  const handleResendCode = async () => {
+    setIsLoading(true)
+    setError("")
+    try {
+      const ok = await requestOtp(formData.email, "signup")
+      if (!ok) {
+        setError("Failed to resend code")
+        return
+      }
+      setResendCountdown(60)
+    } catch {
+      setError("An error occurred. Please try again.")
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleResendCode = () => {
-    setResendCountdown(60)
-    // Mock resend logic
-  }
-
-  const handleStep1Submit = (e: React.FormEvent) => {
+  const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.firstName || !formData.lastName || !formData.email) {
       setError("Please fill in all fields")
@@ -113,34 +99,48 @@ export function SignUpFlow() {
     setStep(2)
   }
 
-  const handleStep2Submit = (e: React.FormEvent) => {
+  const handleStep2Submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!isPasswordValid) {
-      setError("Please meet all password requirements")
+      setError("Your password doesn't meet the requirements")
       return
     }
     if (!passwordsMatch) {
       setError("Passwords do not match")
       return
     }
-    setResendCountdown(60)
-    setStep(3)
+    setIsLoading(true)
+    setError("")
+    try {
+      const ok = await requestOtp(formData.email, "signup")
+      if (!ok) {
+        setError("Failed to send code. Please try again.")
+        return
+      }
+      setResendCountdown(60)
+      setStep(3)
+    } catch {
+      setError("An error occurred. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleStep3Submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (formData.verificationCode.length !== 6) {
-      setError("Please enter the 6-digit verification code")
+    if (!/^\d{5}$/.test(formData.verificationCode)) {
+      setError("Please enter the 5-digit verification code")
       return
     }
     setIsLoading(true)
 
     try {
-      // Mock verification - accept any 6-digit code
-      const success = await signUp({
+      const success = await verifyOtp({
+        email: formData.email,
+        purpose: "signup",
+        otp: formData.verificationCode,
         firstName: formData.firstName,
         lastName: formData.lastName,
-        email: formData.email,
         password: formData.password,
       })
 
@@ -148,7 +148,7 @@ export function SignUpFlow() {
         setIsComplete(true)
         setTimeout(() => router.push("/"), 2000)
       } else {
-        setError("Failed to create account. Please try again.")
+        setError("Invalid or expired code")
       }
     } catch {
       setError("An error occurred. Please try again.")
@@ -285,13 +285,16 @@ export function SignUpFlow() {
                   onCheckedChange={(checked) => updateFormData("agreeToTerms", checked as boolean)}
                   className="mt-1 border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                 />
-                <Label htmlFor="terms" className="text-sm text-muted-foreground cursor-pointer leading-relaxed">
-                  I agree to the{" "}
-                  <Link href="/terms" className="text-primary hover:underline">
+                <Label
+                  htmlFor="terms"
+                  className="text-sm text-muted-foreground cursor-pointer leading-relaxed flex flex-wrap items-center gap-x-1"
+                >
+                  <span>I agree to the</span>
+                  <Link href="/terms" className="text-primary hover:underline font-medium">
                     Terms & Conditions
-                  </Link>{" "}
-                  and{" "}
-                  <Link href="/privacy" className="text-primary hover:underline">
+                  </Link>
+                  <span>and</span>
+                  <Link href="/privacy" className="text-primary hover:underline font-medium">
                     Privacy Policy
                   </Link>
                 </Label>
@@ -310,7 +313,7 @@ export function SignUpFlow() {
             </form>
           )}
 
-          {/* Step 2: Security */}
+          {/* Step 2: Password */}
           {step === 2 && (
             <form onSubmit={handleStep2Submit} className="space-y-5">
               <div className="flex items-center gap-3 mb-6">
@@ -322,7 +325,7 @@ export function SignUpFlow() {
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div>
-                  <h1 className="text-xl font-bold text-foreground">Set your password</h1>
+                  <h1 className="text-xl font-bold text-foreground">Create a password</h1>
                   <p className="text-sm text-muted-foreground">Step 2 of 3 - Security</p>
                 </div>
               </div>
@@ -341,7 +344,7 @@ export function SignUpFlow() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Create a strong password"
+                    placeholder="Create a password"
                     value={formData.password}
                     onChange={(e) => updateFormData("password", e.target.value)}
                     required
@@ -357,47 +360,6 @@ export function SignUpFlow() {
                 </div>
               </div>
 
-              {/* Password Strength */}
-              <div className="space-y-2">
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div
-                      key={i}
-                      className={cn(
-                        "h-1 flex-1 rounded-full transition-colors",
-                        Object.values(passwordValidations).filter(Boolean).length >= i ? "bg-primary" : "bg-muted",
-                      )}
-                    />
-                  ))}
-                </div>
-                <ul className="space-y-1 text-xs">
-                  {[
-                    { key: "minLength", label: "Minimum 8 characters" },
-                    { key: "uppercase", label: "At least one uppercase letter" },
-                    { key: "number", label: "At least one number" },
-                    { key: "special", label: "At least one special character" },
-                  ].map(({ key, label }) => (
-                    <li
-                      key={key}
-                      className={cn(
-                        "flex items-center gap-2",
-                        passwordValidations[key as keyof typeof passwordValidations]
-                          ? "text-primary"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      <Check
-                        className={cn(
-                          "w-3 h-3",
-                          passwordValidations[key as keyof typeof passwordValidations] ? "opacity-100" : "opacity-30",
-                        )}
-                      />
-                      {label}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword" className="text-foreground">
                   Confirm Password
@@ -410,11 +372,7 @@ export function SignUpFlow() {
                     value={formData.confirmPassword}
                     onChange={(e) => updateFormData("confirmPassword", e.target.value)}
                     required
-                    className={cn(
-                      "bg-secondary border-border focus:ring-primary pr-10",
-                      formData.confirmPassword &&
-                        (passwordsMatch ? "border-primary focus:border-primary" : "border-destructive"),
-                    )}
+                    className="bg-secondary border-border focus:ring-primary pr-10"
                   />
                   <button
                     type="button"
@@ -424,17 +382,39 @@ export function SignUpFlow() {
                     {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
-                {formData.confirmPassword && !passwordsMatch && (
-                  <p className="text-xs text-destructive">Passwords do not match</p>
-                )}
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Your password must contain:</p>
+                <ul className="space-y-1 text-sm">
+                  <li className={cn("flex items-center gap-2", passwordRules.length ? "text-primary" : "text-muted-foreground")}>
+                    <Check className={cn("w-4 h-4", passwordRules.length ? "opacity-100" : "opacity-30")} />
+                    Between 8 and 64 characters
+                  </li>
+                  <li className={cn("flex items-center gap-2", passwordRules.letter ? "text-primary" : "text-muted-foreground")}>
+                    <Check className={cn("w-4 h-4", passwordRules.letter ? "opacity-100" : "opacity-30")} />
+                    At least 1 letter
+                  </li>
+                  <li className={cn("flex items-center gap-2", passwordRules.number ? "text-primary" : "text-muted-foreground")}>
+                    <Check className={cn("w-4 h-4", passwordRules.number ? "opacity-100" : "opacity-30")} />
+                    At least 1 number
+                  </li>
+                </ul>
               </div>
 
               <Button
                 type="submit"
-                disabled={!isPasswordValid || !passwordsMatch}
+                disabled={isLoading || !isPasswordValid || !passwordsMatch}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-11 disabled:opacity-50"
               >
-                Continue
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Sending code...
+                  </>
+                ) : (
+                  "Send Code"
+                )}
               </Button>
             </form>
           )}
@@ -468,23 +448,18 @@ export function SignUpFlow() {
                 </div>
               )}
 
-              {/* 6-digit code input */}
-              <div className="flex justify-center gap-2">
-                {[0, 1, 2, 3, 4, 5].map((index) => (
-                  <Input
-                    key={index}
-                    ref={(el) => {
-                      codeInputRefs.current[index] = el
-                    }}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={formData.verificationCode[index] || ""}
-                    onChange={(e) => handleCodeChange(index, e.target.value)}
-                    onKeyDown={(e) => handleCodeKeyDown(index, e)}
-                    className="w-12 h-14 text-center text-xl font-bold bg-secondary border-border focus:ring-primary focus:border-primary"
-                  />
-                ))}
+              <div className="flex justify-center">
+                <InputOTP
+                  maxLength={5}
+                  value={formData.verificationCode}
+                  onChange={(v) => updateFormData("verificationCode", v)}
+                >
+                  <InputOTPGroup>
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <InputOTPSlot key={i} index={i} />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
               </div>
 
               <div className="text-center">
@@ -505,7 +480,7 @@ export function SignUpFlow() {
 
               <Button
                 type="submit"
-                disabled={isLoading || formData.verificationCode.length !== 6}
+                disabled={isLoading || !/^\d{5}$/.test(formData.verificationCode)}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-11 disabled:opacity-50"
               >
                 {isLoading ? (
@@ -517,10 +492,6 @@ export function SignUpFlow() {
                   "Verify & Complete"
                 )}
               </Button>
-
-              <p className="text-center text-xs text-muted-foreground">
-                For demo purposes, enter any 6-digit code to complete registration.
-              </p>
             </form>
           )}
         </div>

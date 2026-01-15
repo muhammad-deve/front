@@ -2,37 +2,67 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "./auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Play, Eye, EyeOff, Loader2 } from "lucide-react"
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
+import { Play, Loader2, ArrowLeft } from "lucide-react"
 
 export function SignInForm() {
   const router = useRouter()
-  const { signIn } = useAuth()
+  const { requestOtp, verifyOtp } = useAuth()
   const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
+  const [otp, setOtp] = useState("")
+  const [step, setStep] = useState<"email" | "otp">("email")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [resendCountdown, setResendCountdown] = useState(0)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (resendCountdown > 0) {
+      const t = setTimeout(() => setResendCountdown((s) => s - 1), 1000)
+      return () => clearTimeout(t)
+    }
+  }, [resendCountdown])
+
+  const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setIsLoading(true)
 
     try {
-      const success = await signIn(email, password)
-      if (success) {
+      const ok = await requestOtp(email, "signin")
+      if (!ok) {
+        setError("Failed to send code. Please try again.")
+        return
+      }
+      setResendCountdown(60)
+      setStep("otp")
+    } catch {
+      setError("An error occurred. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    if (!/^\d{5}$/.test(otp)) {
+      setError("Please enter the 5-digit code")
+      return
+    }
+    setIsLoading(true)
+    try {
+      const ok = await verifyOtp({ email, purpose: "signin", otp })
+      if (ok) {
         router.push("/")
       } else {
-        setError("Invalid email or password")
+        setError("Invalid or expired code")
       }
     } catch {
       setError("An error occurred. Please try again.")
@@ -63,8 +93,8 @@ export function SignInForm() {
             <p className="text-muted-foreground">Sign in to continue watching</p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {step === "email" ? (
+            <form onSubmit={handleSendCode} className="space-y-6">
             {error && (
               <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
                 {error}
@@ -86,47 +116,6 @@ export function SignInForm() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-foreground">
-                Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="bg-secondary border-border focus:ring-primary focus:border-primary pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="remember"
-                  checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                  className="border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                />
-                <Label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
-                  Remember me
-                </Label>
-              </div>
-              <Link href="/forgot-password" className="text-sm text-primary hover:underline">
-                Forgot password?
-              </Link>
-            </div>
-
             <Button
               type="submit"
               disabled={isLoading}
@@ -135,13 +124,91 @@ export function SignInForm() {
               {isLoading ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Signing in...
+                  Sending code...
                 </>
               ) : (
-                "Sign In"
+                "Send Code"
               )}
             </Button>
-          </form>
+            </form>
+          ) : (
+            <form onSubmit={handleVerify} className="space-y-6">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep("email")
+                    setOtp("")
+                    setError("")
+                  }}
+                  className="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div>
+                  <h2 className="text-lg font-bold text-foreground">Enter verification code</h2>
+                  <p className="text-sm text-muted-foreground">We sent a 5-digit code to {email}</p>
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                  {error}
+                </div>
+              )}
+
+              <div className="flex justify-center">
+                <InputOTP maxLength={5} value={otp} onChange={setOtp}>
+                  <InputOTPGroup>
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <InputOTPSlot key={i} index={i} />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+
+              <div className="text-center">
+                {resendCountdown > 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Resend code in <span className="text-primary font-medium">{resendCountdown}s</span>
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setIsLoading(true)
+                      setError("")
+                      try {
+                        const ok = await requestOtp(email, "signin")
+                        if (ok) setResendCountdown(60)
+                        else setError("Failed to resend code")
+                      } finally {
+                        setIsLoading(false)
+                      }
+                    }}
+                    className="text-sm text-primary hover:underline font-medium"
+                  >
+                    Resend code
+                  </button>
+                )}
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isLoading || !/^\d{5}$/.test(otp)}
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold h-11 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  "Verify & Sign In"
+                )}
+              </Button>
+            </form>
+          )}
 
           {/* Divider */}
           <div className="relative my-8">

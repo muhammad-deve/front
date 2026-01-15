@@ -8,6 +8,72 @@ type PBListResp<T> = {
   items: T[]
 }
 
+export async function listFeaturedHero(opts?: {
+  perPage?: number
+  sort?: string
+}): Promise<Content[]> {
+  const perPage = opts?.perPage ?? 5
+
+  const featuredResp = await pbGetJSON<PBListResp<PBFeaturedRecord>>(pbApiBasePath() + "/featured", {
+    page: 1,
+    perPage,
+    sort: opts?.sort,
+    fields: "id,movie_id,background_url,created",
+  })
+
+  const featured = featuredResp.items || []
+  const movieIds = featured.map((f) => (f.movie_id || "").trim()).filter(Boolean)
+  if (movieIds.length === 0) return []
+
+  const idFilter = buildOrEqualsFilter("id", movieIds)
+  if (!idFilter) return []
+
+  const { items: movies } = await listContent({
+    page: 1,
+    perPage: 200,
+    filter: idFilter,
+  })
+
+  const byId = new Map(movies.map((m) => [m.imdb_id, m] as const))
+  const byRecordId = new Map<string, Content>()
+
+  // listContent() returns Content keyed by imdb_id, but we need to map by PB record id.
+  // We re-fetch minimal mapping from PB for the selected record ids.
+  const resp = await pbGetJSON<PBListResp<PBMovieRecord>>(pbApiBasePath() + "/content", {
+    page: 1,
+    perPage: 200,
+    filter: idFilter,
+    fields: "id,imdb_id",
+  })
+
+  for (const r of resp.items || []) {
+    const imdb = (r.imdb_id || "").trim()
+    if (!imdb) continue
+    const c = byId.get(imdb)
+    if (c) byRecordId.set(r.id, c)
+  }
+
+  const out: Content[] = []
+  for (const f of featured) {
+    const mid = (f.movie_id || "").trim()
+    if (!mid) continue
+    const c = byRecordId.get(mid)
+    if (!c) continue
+
+    const bg = (f.background_url || "").trim()
+    out.push(
+      bg
+        ? {
+            ...c,
+            backdropImage: { url: bg, width: 0, height: 0 },
+          }
+        : c,
+    )
+  }
+
+  return out
+}
+
 type PBMovieExpand = {
   content_id?: {
     poster_url?: string
@@ -70,6 +136,12 @@ type PBChannelRecord = {
     category?: Array<{ name?: string }>
     country?: { name?: string; code?: string }
   }
+}
+
+type PBFeaturedRecord = {
+  id: string
+  movie_id?: string
+  background_url?: string
 }
 
 let peopleHasContentsField: boolean | null = null
