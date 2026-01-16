@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { VideoSources } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -10,6 +10,7 @@ import { Maximize, Server, AlertCircle } from "lucide-react"
 interface VideoPlayerProps {
   sources: VideoSources
   title: string
+  excludeServers?: Array<keyof VideoSources>
 }
 
 type ServerKey = keyof VideoSources
@@ -22,13 +23,38 @@ const serverNames: Record<ServerKey, string> = {
   vidsrc_url: "VidSrc",
 }
 
-export function VideoPlayer({ sources, title }: VideoPlayerProps) {
-  const availableServers = Object.entries(sources).filter(([, url]) => url) as [ServerKey, string][]
+export function VideoPlayer({ sources, title, excludeServers }: VideoPlayerProps) {
+  const availableServers = useMemo(() => {
+    const excluded = new Set<ServerKey>((excludeServers || []) as ServerKey[])
+
+    return Object.entries(sources).filter(([key, url]) => {
+      if (!url) return false
+      if (!url.trim()) return false
+      const k = key as ServerKey
+      if (excluded.has(k)) return false
+      return true
+    }) as [ServerKey, string][]
+  }, [excludeServers, sources])
+
   const [activeServer, setActiveServer] = useState<ServerKey>(availableServers[0]?.[0] || "vidsrc_url")
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [hasError, setHasError] = useState(false)
 
-  const currentUrl = sources[activeServer]
+  useEffect(() => {
+    if (availableServers.length === 0) return
+    const stillValid = availableServers.some(([k]) => k === activeServer)
+    if (!stillValid) {
+      setActiveServer(availableServers[0]![0])
+      setHasError(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableServers.map(([k]) => k).join("|")])
+
+  const currentUrl = sources[activeServer] || availableServers[0]?.[1]
+
+  useEffect(() => {
+    setHasError(false)
+  }, [currentUrl])
 
   const handleFullscreen = () => {
     const iframe = document.querySelector("#video-iframe") as HTMLIFrameElement

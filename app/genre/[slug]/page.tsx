@@ -18,12 +18,12 @@ export default async function GenrePage({ params }: GenrePageProps) {
     notFound()
   }
 
-	const { items: genreContent, totalItems } = await listContent({
-		page: 1,
-		perPage: 120,
-		filter: `genre_id ?= "${genre.id}"`,
-		sort: "-vote_count",
-	})
+  const { items: genreContent, totalItems } = await listContent({
+    page: 1,
+    perPage: 120,
+    filter: `genre_id ?= "${genre.id}"`,
+    sort: "-imdb_rating",
+  })
 
   return (
     <main className="min-h-screen bg-background">

@@ -1,8 +1,41 @@
+import type React from "react"
 import Link from "next/link"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
-import { listContent, listGenres } from "@/lib/pb"
-import { Layers } from "lucide-react"
+import { listGenres } from "@/lib/pb"
+import { getGenreCountsCached } from "@/lib/genre-counts"
+import {
+  Layers,
+  Zap,
+  Map,
+  Search,
+  Users,
+  Sparkles,
+  Ghost,
+  Eye,
+  Heart,
+  Rocket,
+  AlertTriangle,
+  Camera,
+  User,
+  Skull,
+  Lock,
+  Film,
+  Music,
+  Landmark,
+  Moon,
+  Trophy,
+  Theater,
+  Laugh,
+  Wand2,
+  Swords,
+  Tv,
+  Newspaper,
+  Scissors,
+  Gamepad2,
+  Mic2,
+  Sun,
+} from "lucide-react"
 
 // Genre descriptions
 const genreDescriptions: Record<string, string> = {
@@ -21,30 +54,47 @@ const genreDescriptions: Record<string, string> = {
 }
 
 // Genre icons/emojis for visual interest
-const genreIcons: Record<string, string> = {
-  Action: "💥",
-  Adventure: "🗺️",
-  Comedy: "😂",
-  Crime: "🔍",
-  Drama: "🎭",
-  Fantasy: "🧙",
-  Horror: "👻",
-  Mystery: "🕵️",
-  Romance: "💕",
-  "Sci-Fi": "🚀",
-  Thriller: "😰",
-  Documentary: "📽️",
+const genreIcons: Record<string, (props: { className?: string }) => React.ReactElement> = {
+  Action: (p) => <Zap {...p} />,
+  Adventure: (p) => <Map {...p} />,
+  Comedy: (p) => <Laugh {...p} />,
+  Crime: (p) => <Search {...p} />,
+  Drama: (p) => <Theater {...p} />,
+  Family: (p) => <Users {...p} />,
+  Fantasy: (p) => <Wand2 {...p} />,
+  Horror: (p) => <Skull {...p} />,
+  Mystery: (p) => <Eye {...p} />,
+  Romance: (p) => <Heart {...p} />,
+  "Sci-Fi": (p) => <Rocket {...p} />,
+  Thriller: (p) => <AlertTriangle {...p} />,
+  Documentary: (p) => <Camera {...p} />,
+  Biography: (p) => <User {...p} />,
+  Animation: (p) => <Sparkles {...p} />,
+  Adult: (p) => <Lock {...p} />,
+  History: (p) => <Landmark {...p} />,
+  War: (p) => <Swords {...p} />,
+  Music: (p) => <Music {...p} />,
+  "Film-Noir": (p) => <Moon {...p} />,
+  Sport: (p) => <Trophy {...p} />,
+  Western: (p) => <Sun {...p} />,
+  Reality: (p) => <Tv {...p} />,
+  Musical: (p) => <Mic2 {...p} />,
+  "Talk-Show": (p) => <Users {...p} />,
+  News: (p) => <Newspaper {...p} />,
+  Short: (p) => <Scissors {...p} />,
+  "Game-Show": (p) => <Gamepad2 {...p} />,
+  "TV Movie": (p) => <Film {...p} />,
+  "Sci Fi": (p) => <Rocket {...p} />,
+  "Science Fiction": (p) => <Rocket {...p} />,
+  "SciFi": (p) => <Rocket {...p} />,
+  "Film Noir": (p) => <Moon {...p} />,
+  "Noir": (p) => <Moon {...p} />,
+  "Supernatural": (p) => <Ghost {...p} />,
 }
 
 export default async function GenresPage() {
 	const genres = await listGenres()
-	const counts = await Promise.all(
-		genres.map(async (g) => {
-			const resp = await listContent({ page: 1, perPage: 1, filter: `genre_id ?= "${g.id}"` })
-			return { id: g.id, total: resp.totalItems }
-		}),
-	)
-	const countByID = new Map(counts.map((c) => [c.id, c.total]))
+	const countByID = await getGenreCountsCached()
 
   return (
     <main className="min-h-screen bg-background">
@@ -65,7 +115,8 @@ export default async function GenresPage() {
         {/* Genre Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {genres.map((genre) => {
-            const count = countByID.get(genre.id) || 0
+            const count = countByID[genre.id] || 0
+            const Icon = genreIcons[genre.name] || ((p: { className?: string }) => <Film {...p} />)
 
             return (
               <Link
@@ -75,7 +126,9 @@ export default async function GenresPage() {
               >
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-3">
-                    <span className="text-4xl">{genreIcons[genre.name] || "🎬"}</span>
+                    <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center">
+                      <Icon className="w-6 h-6 text-primary" />
+                    </div>
                     <span className="px-2 py-1 bg-secondary text-muted-foreground text-xs font-medium rounded">
                       {count} titles
                     </span>

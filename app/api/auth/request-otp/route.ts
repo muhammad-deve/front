@@ -17,9 +17,13 @@ function otpEmailHtml(opts: { otp: string; toEmail: string }): string {
     .map(
       (d) => `
       <td style="padding:0 6px;">
-        <div style="width:52px;height:56px;border-radius:14px;border:1px solid #2b2f36;background:#12141a;color:#ffffff;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;letter-spacing:0.02em;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;box-shadow:0 10px 30px rgba(0,0,0,.35);">
-          ${d}
-        </div>
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
+          <tr>
+            <td style="width:52px;height:56px;border-radius:14px;border:1px solid #2b2f36;background:#12141a;color:#ffffff;text-align:center;vertical-align:middle;font-size:26px;font-weight:800;letter-spacing:0.02em;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;box-shadow:0 10px 30px rgba(0,0,0,.35);">
+              ${d}
+            </td>
+          </tr>
+        </table>
       </td>
     `,
     )
@@ -36,13 +40,15 @@ function otpEmailHtml(opts: { otp: string; toEmail: string }): string {
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;margin:0 auto;">
       <tr>
         <td style="padding:0 0 16px 0;">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <div style="width:44px;height:44px;border-radius:12px;background:#f59e0b;display:flex;align-items:center;justify-content:center;color:#0b0c10;font-weight:900;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">SV</div>
-            <div>
-              <div style="color:#ffffff;font-size:18px;font-weight:800;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">StreamVault</div>
-              <div style="color:#a7b0c0;font-size:12px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">Secure sign-in verification</div>
-            </div>
-          </div>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+              <td style="width:44px;height:44px;border-radius:12px;background:#f59e0b;text-align:center;vertical-align:middle;color:#0b0c10;font-weight:900;font-size:16px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">SV</td>
+              <td style="padding-left:12px;vertical-align:middle;">
+                <div style="color:#ffffff;font-size:18px;font-weight:800;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">StreamVault</div>
+                <div style="color:#a7b0c0;font-size:12px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">Secure sign-in verification</div>
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
 
@@ -61,7 +67,7 @@ function otpEmailHtml(opts: { otp: string; toEmail: string }): string {
           </table>
 
           <div style="color:#a7b0c0;font-size:12px;line-height:1.5;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">
-            If you didn’t request this, you can ignore this email.
+            If you didn't request this, you can ignore this email.
           </div>
         </td>
       </tr>
@@ -75,6 +81,7 @@ function otpEmailHtml(opts: { otp: string; toEmail: string }): string {
   </body>
 </html>`
 }
+
 
 export async function POST(req: Request) {
   try {

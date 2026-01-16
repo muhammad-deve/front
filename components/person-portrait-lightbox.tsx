@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 interface PersonPortraitLightboxProps {
   src?: string
@@ -29,6 +29,7 @@ export function PersonPortraitLightbox({ src, alt }: PersonPortraitLightboxProps
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-4xl p-0 overflow-hidden">
+        <DialogTitle className="sr-only">{alt}</DialogTitle>
         <div className="relative bg-muted aspect-square">
           <Image src={img} alt={alt} fill className="object-cover" />
         </div>

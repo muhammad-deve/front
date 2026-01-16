@@ -3,10 +3,11 @@ import Image from "next/image"
 import Link from "next/link"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
-import { VideoPlayer } from "@/components/video-player"
+import { SeriesWatchSection } from "@/components/series-watch-section"
 import { CastSection } from "@/components/cast-section"
 import { ContentCarousel } from "@/components/content-carousel"
 import { RelatedContentSection } from "@/components/related-content-section"
+import { PosterLightbox } from "@/components/poster-lightbox"
 import { getContentByImdb } from "@/lib/pb"
 import { formatRuntime, formatRating, formatVoteCount } from "@/lib/utils"
 import { Star, Calendar, Clock, Tv } from "lucide-react"
@@ -53,7 +54,11 @@ export default async function SeriesPage({ params }: SeriesPageProps) {
             {/* Poster */}
             <div className="hidden lg:block">
               <div className="sticky top-24">
-                <div className="aspect-[2/3] rounded-xl overflow-hidden shadow-2xl border border-border">
+                <PosterLightbox
+                  src={series.primaryImage?.url || "/placeholder.svg?height=600&width=400&query=tv series poster"}
+                  alt={series.title}
+                  className="aspect-[2/3] rounded-xl overflow-hidden shadow-2xl border border-border"
+                >
                   <Image
                     src={series.primaryImage?.url || "/placeholder.svg?height=600&width=400&query=tv series poster"}
                     alt={series.title}
@@ -61,7 +66,7 @@ export default async function SeriesPage({ params }: SeriesPageProps) {
                     height={450}
                     className="w-full h-full object-cover"
                   />
-                </div>
+                </PosterLightbox>
                 <WatchlistButton contentId={series.imdb_id} className="w-full mt-4" />
               </div>
             </div>
@@ -158,7 +163,12 @@ export default async function SeriesPage({ params }: SeriesPageProps) {
                 <div className="pt-4">
                   <h2 className="text-xl font-bold text-foreground mb-4">Watch Now</h2>
                   <div className="max-w-5xl mx-auto w-full">
-                    <VideoPlayer sources={series.primaryVideo} title={series.title} />
+                    <SeriesWatchSection
+                      imdbId={series.imdb_id}
+                      tmdbId={series.tmdb_id}
+                      title={series.title}
+                      sources={series.primaryVideo}
+                    />
                   </div>
                 </div>
               )}
@@ -170,7 +180,9 @@ export default async function SeriesPage({ params }: SeriesPageProps) {
             pbType="serie"
             title="More Like This"
             genreIds={series.genreIds}
+            genreNames={series.genres}
             countryIds={series.countryIds}
+            currentRating={series.rating?.aggregateRating}
             allHref="/series"
           />
         </div>

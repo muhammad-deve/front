@@ -7,6 +7,7 @@ import { VideoPlayer } from "@/components/video-player"
 import { CastSection } from "@/components/cast-section"
 import { ContentCarousel } from "@/components/content-carousel"
 import { RelatedContentSection } from "@/components/related-content-section"
+import { PosterLightbox } from "@/components/poster-lightbox"
 import { getContentByImdb } from "@/lib/pb"
 import { formatRuntime, formatRating, formatVoteCount } from "@/lib/utils"
 import { Star, Calendar, Clock, Globe } from "lucide-react"
@@ -53,7 +54,11 @@ export default async function MoviePage({ params }: MoviePageProps) {
             {/* Poster */}
             <div className="hidden lg:block">
               <div className="sticky top-24">
-                <div className="aspect-[2/3] rounded-xl overflow-hidden shadow-2xl border border-border">
+                <PosterLightbox
+                  src={movie.primaryImage?.url || "/placeholder.svg?height=600&width=400&query=movie poster"}
+                  alt={movie.title}
+                  className="aspect-[2/3] rounded-xl overflow-hidden shadow-2xl border border-border"
+                >
                   <Image
                     src={movie.primaryImage?.url || "/placeholder.svg?height=600&width=400&query=movie poster"}
                     alt={movie.title}
@@ -61,7 +66,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                     height={450}
                     className="w-full h-full object-cover"
                   />
-                </div>
+                </PosterLightbox>
                 <WatchlistButton contentId={movie.imdb_id} className="w-full mt-4" />
               </div>
             </div>
@@ -200,7 +205,9 @@ export default async function MoviePage({ params }: MoviePageProps) {
             pbType="movie"
             title="More Like This"
             genreIds={movie.genreIds}
+            genreNames={movie.genres}
             countryIds={movie.countryIds}
+            currentRating={movie.rating?.aggregateRating}
             allHref="/movies"
           />
         </div>

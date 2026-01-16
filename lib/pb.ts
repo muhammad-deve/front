@@ -64,9 +64,9 @@ export async function listFeaturedHero(opts?: {
     out.push(
       bg
         ? {
-            ...c,
-            backdropImage: { url: bg, width: 0, height: 0 },
-          }
+          ...c,
+          backdropImage: { url: bg, width: 0, height: 0 },
+        }
         : c,
     )
   }
@@ -151,11 +151,11 @@ function pbBaseUrl(): string {
 }
 
 function pbApiBasePath(): string {
-	return "/api/pb"
+  return "/api/pb"
 }
 
 function siteUrl(): string {
-	return process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "http://localhost:3000"
+  return process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "http://localhost:3000"
 }
 
 function toDisplayGenreName(name: string): string {
@@ -181,12 +181,12 @@ function movieRecordToContent(r: PBMovieRecord): Content {
 
   const primaryVideo: VideoSources | undefined = c
     ? {
-        vidsrc_url: c.vidsrc_url || undefined,
-        vidlink_pro_url: c.vidlink_url || undefined,
-        autoembed_url: c.autoembed_url || undefined,
-        gomo_url: c.gomo_url || undefined,
-        moviesapi_url: c.moviesapi_url || undefined,
-      }
+      vidsrc_url: c.vidsrc_url || undefined,
+      vidlink_pro_url: c.vidlink_url || undefined,
+      autoembed_url: c.autoembed_url || undefined,
+      gomo_url: c.gomo_url || undefined,
+      moviesapi_url: c.moviesapi_url || undefined,
+    }
     : undefined
 
   const genresRaw = (exp.genre_id || [])
@@ -220,10 +220,10 @@ function movieRecordToContent(r: PBMovieRecord): Content {
     primaryImage:
       c && c.poster_url
         ? {
-            url: c.poster_url,
-            width: typeof c.poster_width === "number" ? c.poster_width : 0,
-            height: typeof c.poster_height === "number" ? c.poster_height : 0,
-          }
+          url: c.poster_url,
+          width: typeof c.poster_width === "number" ? c.poster_width : 0,
+          height: typeof c.poster_height === "number" ? c.poster_height : 0,
+        }
         : undefined,
     primaryVideo: primaryVideo && Object.values(primaryVideo).some(Boolean) ? primaryVideo : undefined,
     directors: [],
@@ -244,10 +244,10 @@ function personRecordToPerson(r: PBPersonRecord): Person | null {
     primaryImage:
       r.img_url && typeof r.img_url === "string" && r.img_url.trim()
         ? {
-            url: r.img_url.trim(),
-            width: typeof r.img_width === "number" ? r.img_width : 0,
-            height: typeof r.img_height === "number" ? r.img_height : 0,
-          }
+          url: r.img_url.trim(),
+          width: typeof r.img_width === "number" ? r.img_width : 0,
+          height: typeof r.img_height === "number" ? r.img_height : 0,
+        }
         : undefined,
     professions: extractProfessions(r),
   }
@@ -460,8 +460,8 @@ async function listPeopleForMovie(movieRecordId: string, imdbId?: string, conten
 
 async function pbGetJSON<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
   const isProxy = path.startsWith("/api/pb/")
-	const isServer = typeof window === "undefined"
-	const base = isProxy ? (isServer ? siteUrl() : "http://localhost") : pbBaseUrl()
+  const isServer = typeof window === "undefined"
+  const base = isProxy ? (isServer ? siteUrl() : "http://localhost") : pbBaseUrl()
 
   const u = new URL(path, base)
   if (params) {
@@ -647,11 +647,36 @@ export async function findGenreBySlug(slug: string): Promise<{ id: string; name:
   const s = slug.trim().toLowerCase()
   if (!s) return null
 
-  const resp = await pbGetJSON<PBListResp<PBGenreRecord>>("/api/pb/genres", {
+  // First try exact match with lowercase
+  let resp = await pbGetJSON<PBListResp<PBGenreRecord>>("/api/pb/genres", {
     page: 1,
     perPage: 1,
-    filter: `name="${s.replaceAll('"', "\\\"")}"`,
+    filter: `name="${s.replaceAll('"', '\\"')}"`,
   })
+
+  // If no result, try case-insensitive like match
+  if (!resp.items || resp.items.length === 0) {
+    resp = await pbGetJSON<PBListResp<PBGenreRecord>>("/api/pb/genres", {
+      page: 1,
+      perPage: 1,
+      filter: `name~"${s.replaceAll('"', '\\"')}"`,
+    })
+  }
+
+  // If still no result, get all genres and find case-insensitive match
+  if (!resp.items || resp.items.length === 0) {
+    const allGenres = await pbGetJSON<PBListResp<PBGenreRecord>>("/api/pb/genres", {
+      page: 1,
+      perPage: 200,
+    })
+    const match = allGenres.items.find(
+      (g) => g.name && g.name.toLowerCase() === s
+    )
+    if (match?.id && match?.name) {
+      return { id: match.id, name: toDisplayGenreName(match.name) }
+    }
+    return null
+  }
 
   const g = resp.items[0]
   if (!g?.id || !g.name) return null
