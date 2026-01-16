@@ -73,7 +73,15 @@ export function RelatedContentSection({
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(true)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const baseItems = useMemo(() => items.slice(0, maxItems), [items])
+
+  const loopItems = useMemo(() => {
+    if (baseItems.length === 0) return []
+    // 3 copies so we can keep the scroll position in the middle copy and jump seamlessly.
+    return [...baseItems, ...baseItems, ...baseItems]
+  }, [baseItems])
 
   const currentEscaped = useMemo(() => escapePbString(currentImdbId.trim()), [currentImdbId])
 
@@ -100,12 +108,35 @@ export function RelatedContentSection({
     return `${baseFilter} && (${c})`
   }, [baseFilter, countryIds])
 
+  const getOneSetWidth = (el: HTMLDivElement) => {
+    if (baseItems.length === 0) return 0
+    const w = el.scrollWidth / 3
+    return Number.isFinite(w) && w > 0 ? w : 0
+  }
+
+  const normalizeLoopScroll = (el: HTMLDivElement) => {
+    if (baseItems.length === 0) return
+    const setWidth = getOneSetWidth(el)
+    if (!setWidth) return
+
+    // If user reaches either end, jump to the equivalent position in the middle copy.
+    const threshold = 40
+    if (el.scrollLeft < threshold) {
+      el.scrollLeft = el.scrollLeft + setWidth
+    } else if (el.scrollLeft > setWidth * 2 - threshold) {
+      el.scrollLeft = el.scrollLeft - setWidth
+    }
+  }
+
   const checkScroll = () => {
     const el = scrollRef.current
     if (!el) return
-    const { scrollLeft, scrollWidth, clientWidth } = el
-    setCanScrollLeft(scrollLeft > 0)
-    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 10)
+
+    normalizeLoopScroll(el)
+    // Buttons should not "end"; keep them enabled whenever we have items.
+    const hasItems = baseItems.length > 0
+    setCanScrollLeft(hasItems)
+    setCanScrollRight(hasItems)
   }
 
   const getScrollStep = () => {
@@ -205,20 +236,39 @@ export function RelatedContentSection({
     if (!ref) return
 
     ref.addEventListener("scroll", checkScroll)
-    window.addEventListener("resize", checkScroll)
+
+    const onResize = () => {
+      const el = scrollRef.current
+      if (!el) return
+      if (baseItems.length === 0) return
+      const setWidth = getOneSetWidth(el)
+      if (!setWidth) return
+      // Keep user in the middle copy on resize.
+      el.scrollLeft = setWidth + (el.scrollLeft % setWidth)
+      checkScroll()
+    }
+
+    window.addEventListener("resize", onResize)
     return () => {
       ref.removeEventListener("scroll", checkScroll)
-      window.removeEventListener("resize", checkScroll)
+      window.removeEventListener("resize", onResize)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [baseItems.length])
 
   useEffect(() => {
     const el = scrollRef.current
-    if (el) el.scrollLeft = 0
-    checkScroll()
+    if (!el) return
+    if (baseItems.length === 0) return
+
+    // Start at the middle copy so user can scroll left/right immediately.
+    requestAnimationFrame(() => {
+      const setWidth = getOneSetWidth(el)
+      if (setWidth) el.scrollLeft = setWidth
+      checkScroll()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.length])
+  }, [baseItems.length])
 
   const scroll = (direction: "left" | "right") => {
     const el = scrollRef.current
@@ -285,9 +335,9 @@ export function RelatedContentSection({
               </div>
             </div>
           ))
-          : items.slice(0, maxItems).map((item) => (
+          : loopItems.map((item, idx) => (
             <div
-              key={item.imdb_id}
+              key={`${item.imdb_id}-${idx}`}
               data-carousel-item="true"
               className="flex-shrink-0 w-[160px] sm:w-[180px] lg:w-[200px]"
             >
