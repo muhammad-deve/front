@@ -49,7 +49,7 @@ function pbOtpCollectionPath(suffix: string) {
 }
 
 function pbOtpHashFieldName(): "code_hash" | "hash_code" {
-  const n = (process.env.PB_OTP_HASH_FIELD || "code_hash").trim()
+  const n = (process.env.PB_OTP_HASH_FIELD || "hash_code").trim()
   return n === "hash_code" ? "hash_code" : "code_hash"
 }
 
@@ -74,10 +74,11 @@ export function getOtpSecret(): string {
 }
 
 export async function storeOtp(email: string, purpose: OtpPurpose, otp: string) {
-  const secret = getOtpSecret()
   const now = Date.now()
   const entry: OtpEntry = {
-    codeHash: sha256Hex(`${otp}:${secret}`),
+    // Store OTP as-is (plain) to match the app's desired behavior.
+    // (Hashing is optional; verification still supports hashed records for backward compatibility.)
+    codeHash: otp,
     expiresAt: now + OTP_TTL_MS,
     attempts: 0,
   }
@@ -121,32 +122,20 @@ export async function verifyOtp(email: string, purpose: OtpPurpose, otp: string)
   const normalizedEmail = email.toLowerCase().trim()
   if (!normalizedEmail) return false
 
-  const secret = getOtpSecret()
-  const inputHash = sha256Hex(`${otp}:${secret}`)
-
   const safeEmail = normalizedEmail.replaceAll('"', "\\\"")
   const safePurpose = purpose.replaceAll('"', "\\\"")
 
-  const runQuery = async (hashField: "code_hash" | "hash_code") => {
-    const filter = `email="${safeEmail}" && purpose="${safePurpose}" && ${hashField}="${inputHash}"`
-    const listUrl = new URL(pbOtpCollectionPath(""), pbBaseUrl())
-    listUrl.searchParams.set("page", "1")
-    listUrl.searchParams.set("perPage", "1")
-    listUrl.searchParams.set("sort", "-created")
-    listUrl.searchParams.set("filter", filter)
+  const listUrl = new URL(pbOtpCollectionPath(""), pbBaseUrl())
+  listUrl.searchParams.set("page", "1")
+  listUrl.searchParams.set("perPage", "1")
+  listUrl.searchParams.set("sort", "-created")
+  // Only filter by fields we know exist. We'll compare the code hash in-app.
+  listUrl.searchParams.set("filter", `email="${safeEmail}" && purpose="${safePurpose}"`)
 
-    const listRes = await pbOtpFetch(listUrl.pathname + listUrl.search)
-    if (!listRes.ok) return null
-    const list = (await listRes.json()) as PBListResp<PBOtpRecord>
-    return list.items?.[0] || null
-  }
-
-  const primaryField = pbOtpHashFieldName()
-  let rec = await runQuery(primaryField)
-  if (!rec) {
-    const fallbackField = primaryField === "code_hash" ? "hash_code" : "code_hash"
-    rec = await runQuery(fallbackField)
-  }
+  const listRes = await pbOtpFetch(listUrl.pathname + listUrl.search)
+  if (!listRes.ok) return false
+  const list = (await listRes.json()) as PBListResp<PBOtpRecord>
+  const rec = list.items?.[0] || null
 
   if (!rec?.id) return false
 
@@ -171,7 +160,21 @@ export async function verifyOtp(email: string, purpose: OtpPurpose, otp: string)
     return false
   }
 
-  const ok = crypto.timingSafeEqual(Buffer.from(storedHash, "hex"), Buffer.from(inputHash, "hex"))
+  // Prefer plain OTP compare. If a legacy hashed record exists, compare using OTP_SECRET.
+  const looksLikeHexHash = /^[a-f0-9]{64}$/i.test(storedHash)
+
+  let ok = false
+  if (!looksLikeHexHash) {
+    ok = storedHash === otp
+  } else {
+    const secret = String(process.env.OTP_SECRET || "").trim()
+    if (secret) {
+      const inputHash = sha256Hex(`${otp}:${secret}`)
+      ok = crypto.timingSafeEqual(Buffer.from(storedHash, "hex"), Buffer.from(inputHash, "hex"))
+    } else {
+      ok = false
+    }
+  }
 
   if (ok) {
     await pbOtpFetch(pbOtpCollectionPath(`/${rec.id}`), { method: "DELETE" }).catch(() => {})
