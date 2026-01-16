@@ -2,7 +2,6 @@ import type React from "react"
 import Link from "next/link"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
-import { listGenres } from "@/lib/pb"
 import { getGenreCountsCached } from "@/lib/genre-counts"
 import {
   Layers,
@@ -93,8 +92,10 @@ const genreIcons: Record<string, (props: { className?: string }) => React.ReactE
 }
 
 export default async function GenresPage() {
-	const genres = await listGenres()
-	const countByID = await getGenreCountsCached()
+	const genresById = await getGenreCountsCached()
+	const genres = Object.entries(genresById)
+		.map(([id, v]) => ({ id, name: v.name, count: v.count }))
+		.sort((a, b) => a.name.localeCompare(b.name))
 
   return (
     <main className="min-h-screen bg-background">
@@ -115,7 +116,7 @@ export default async function GenresPage() {
         {/* Genre Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {genres.map((genre) => {
-            const count = countByID[genre.id] || 0
+				const count = genre.count || 0
             const Icon = genreIcons[genre.name] || ((p: { className?: string }) => <Film {...p} />)
 
             return (
