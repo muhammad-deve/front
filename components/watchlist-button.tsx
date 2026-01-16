@@ -15,15 +15,15 @@ export function WatchlistButton({ contentId, className }: WatchlistButtonProps) 
 
   const inWatchlist = isInWatchlist(contentId)
 
-  const handleClick = () => {
+  const handleClick = async () => {
     if (!isAuthenticated) {
       window.location.href = "/sign-in"
       return
     }
     if (inWatchlist) {
-      removeFromWatchlist(contentId)
+      await removeFromWatchlist(contentId)
     } else {
-      addToWatchlist(contentId)
+      await addToWatchlist(contentId)
     }
   }
 

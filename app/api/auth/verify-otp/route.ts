@@ -33,14 +33,17 @@ async function pbFetch(path: string, init?: RequestInit) {
 
 async function pbFindUserByEmail(email: string): Promise<{ id: string; email: string; name?: string } | null> {
   const safeEmail = email.replaceAll('"', "\\\"")
-  const url = new URL("/api/collections/_pb_users_auth_/records", pbBaseUrl())
+  const url = new URL("/api/collections/users/records", pbBaseUrl())
   url.searchParams.set("page", "1")
   url.searchParams.set("perPage", "1")
   url.searchParams.set("filter", `email=\"${safeEmail}\"`)
   url.searchParams.set("fields", "id,email,name")
 
   const res = await pbFetch(url.pathname + url.search)
-  if (!res.ok) return null
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`PocketBase user lookup failed: ${res.status} ${text}`)
+  }
   const json = (await res.json().catch(() => null)) as { items?: Array<{ id?: unknown; email?: unknown; name?: unknown }> } | null
   const item = json?.items?.[0]
   if (!item || typeof item.id !== "string" || typeof item.email !== "string") return null
@@ -54,7 +57,7 @@ async function pbCreateUser(opts: {
   lastName: string
 }): Promise<{ id: string; email: string; name?: string } | null> {
   const name = `${opts.firstName} ${opts.lastName}`.trim()
-  const res = await pbFetch("/api/collections/_pb_users_auth_/records", {
+  const res = await pbFetch("/api/collections/users/records", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -115,6 +118,11 @@ export async function POST(req: Request) {
         return Response.json({ error: "Invalid password" }, { status: 400 })
       }
 
+      const existing = await pbFindUserByEmail(email)
+      if (existing?.id) {
+        return Response.json({ error: "Email already registered" }, { status: 400 })
+      }
+
       const created = await pbCreateUser({ email, password, firstName, lastName })
       if (!created) {
         return Response.json({ error: "Failed to create account" }, { status: 400 })
@@ -122,7 +130,10 @@ export async function POST(req: Request) {
       pbUserId = created.id
     } else {
       const existing = await pbFindUserByEmail(email)
-      if (existing?.id) pbUserId = existing.id
+      if (!existing?.id) {
+        return Response.json({ error: "Account not found" }, { status: 400 })
+      }
+      pbUserId = existing.id
     }
 
     const user = {

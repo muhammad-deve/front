@@ -24,7 +24,7 @@ export function ContentCard({ content, className }: ContentCardProps) {
   const inWatchlist = isInWatchlist(content.imdb_id)
   const detailUrl = content.type === "movie" ? `/movie/${content.imdb_id}` : `/series/${content.imdb_id}`
 
-  const handleWatchlistClick = (e: React.MouseEvent) => {
+  const handleWatchlistClick = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (!isAuthenticated) {
@@ -32,9 +32,9 @@ export function ContentCard({ content, className }: ContentCardProps) {
       return
     }
     if (inWatchlist) {
-      removeFromWatchlist(content.imdb_id)
+      await removeFromWatchlist(content.imdb_id)
     } else {
-      addToWatchlist(content.imdb_id)
+      await addToWatchlist(content.imdb_id)
     }
   }
 

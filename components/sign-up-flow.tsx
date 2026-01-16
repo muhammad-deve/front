@@ -69,13 +69,41 @@ export function SignUpFlow() {
     setError("")
   }
 
+  const requestSignupOtp = async (email: string): Promise<boolean> => {
+    const res = await fetch("/api/auth/request-otp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, purpose: "signup" }),
+    }).catch(() => null)
+    if (!res) {
+      setError("An error occurred. Please try again.")
+      return false
+    }
+    if (res.ok) return true
+    const json = (await res.json().catch(() => null)) as { error?: unknown } | null
+    const msg = typeof json?.error === "string" && json.error.trim() ? json.error.trim() : "Failed to send code"
+    setError(msg)
+    return false
+  }
+
+  const checkEmailExists = async (email: string): Promise<boolean | null> => {
+    const res = await fetch("/api/auth/check-email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email }),
+    }).catch(() => null)
+    if (!res) return null
+    if (!res.ok) return null
+    const json = (await res.json().catch(() => null)) as { exists?: unknown } | null
+    return typeof json?.exists === "boolean" ? json.exists : null
+  }
+
   const handleResendCode = async () => {
     setIsLoading(true)
     setError("")
     try {
-      const ok = await requestOtp(formData.email, "signup")
+      const ok = await requestSignupOtp(formData.email)
       if (!ok) {
-        setError("Failed to resend code")
         return
       }
       setResendCountdown(60)
@@ -96,7 +124,24 @@ export function SignUpFlow() {
       setError("You must agree to the Terms & Conditions")
       return
     }
-    setStep(2)
+
+    setIsLoading(true)
+    setError("")
+    try {
+      const exists = await checkEmailExists(formData.email)
+      if (exists === true) {
+        setError("Email already registered")
+        return
+      }
+      if (exists === null) {
+        setError("Unable to validate email. Please try again.")
+        return
+      }
+
+      setStep(2)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleStep2Submit = async (e: React.FormEvent) => {
@@ -112,9 +157,8 @@ export function SignUpFlow() {
     setIsLoading(true)
     setError("")
     try {
-      const ok = await requestOtp(formData.email, "signup")
+      const ok = await requestSignupOtp(formData.email)
       if (!ok) {
-        setError("Failed to send code. Please try again.")
         return
       }
       setResendCountdown(60)
@@ -300,8 +344,19 @@ export function SignUpFlow() {
                 </Label>
               </div>
 
-              <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-11">
-                Continue
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-11 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Continue...
+                  </>
+                ) : (
+                  "Continue"
+                )}
               </Button>
 
               <p className="text-center text-sm text-muted-foreground">
@@ -410,10 +465,10 @@ export function SignUpFlow() {
                 {isLoading ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Sending code...
+                    Continue...
                   </>
                 ) : (
-                  "Send Code"
+                  "Continue"
                 )}
               </Button>
             </form>
@@ -489,7 +544,7 @@ export function SignUpFlow() {
                     Verifying...
                   </>
                 ) : (
-                  "Verify & Complete"
+                  "Verify email"
                 )}
               </Button>
             </form>

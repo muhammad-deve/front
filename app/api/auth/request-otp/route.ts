@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer"
 import { generateOtp5, storeOtp } from "../_lib"
+import { getPocketBaseAuthorizationHeaderValue, pbBaseUrl } from "../../pb/_auth"
 
 export const runtime = "nodejs"
 
@@ -7,6 +8,35 @@ function requireEnv(name: string): string {
   const v = (process.env[name] || "").trim()
   if (!v) throw new Error(`Missing ${name} env var`)
   return v
+}
+
+async function pbFetch(path: string, init?: RequestInit) {
+  const authorization = await getPocketBaseAuthorizationHeaderValue()
+  return fetch(new URL(path, pbBaseUrl()).toString(), {
+    ...init,
+    cache: "no-store",
+    headers: {
+      ...(init?.headers || {}),
+      Authorization: authorization,
+    },
+  })
+}
+
+async function pbUserExists(email: string): Promise<boolean> {
+  const safeEmail = email.replaceAll('"', "\\\"")
+  const url = new URL("/api/collections/users/records", pbBaseUrl())
+  url.searchParams.set("page", "1")
+  url.searchParams.set("perPage", "1")
+  url.searchParams.set("filter", `email=\"${safeEmail}\"`)
+  url.searchParams.set("fields", "id")
+
+  const res = await pbFetch(url.pathname + url.search)
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`PocketBase user lookup failed: ${res.status} ${text}`)
+  }
+  const json = (await res.json().catch(() => null)) as { items?: Array<{ id?: unknown }> } | null
+  return typeof json?.items?.[0]?.id === "string"
 }
 
 function otpEmailHtml(opts: { otp: string; toEmail: string }): string {
@@ -97,6 +127,14 @@ export async function POST(req: Request) {
     }
     if (purpose !== "signup" && purpose !== "signin") {
       return Response.json({ error: "Invalid purpose" }, { status: 400 })
+    }
+
+    const exists = await pbUserExists(email)
+    if (purpose === "signup" && exists) {
+      return Response.json({ error: "Email already registered" }, { status: 400 })
+    }
+    if (purpose === "signin" && !exists) {
+      return Response.json({ error: "Account not found" }, { status: 400 })
     }
 
     const otp = generateOtp5()

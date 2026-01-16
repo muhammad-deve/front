@@ -31,15 +31,15 @@ export function HeroSection({ content, featuredItems = [] }: HeroSectionProps) {
     return () => clearInterval(interval)
   }, [allItems.length])
 
-  const handleWatchlistClick = () => {
+  const handleWatchlistClick = async () => {
     if (!isAuthenticated) {
       window.location.href = "/sign-in"
       return
     }
     if (inWatchlist) {
-      removeFromWatchlist(activeContent.imdb_id)
+      await removeFromWatchlist(activeContent.imdb_id)
     } else {
-      addToWatchlist(activeContent.imdb_id)
+      await addToWatchlist(activeContent.imdb_id)
     }
   }
 

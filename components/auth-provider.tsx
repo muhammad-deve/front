@@ -6,11 +6,12 @@ import type { User } from "@/lib/types"
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
+  signIn: (email: string, password: string) => Promise<boolean>
   requestOtp: (email: string, purpose: "signin" | "signup") => Promise<boolean>
   verifyOtp: (data: VerifyOtpData) => Promise<boolean>
   signOut: () => Promise<void>
-  addToWatchlist: (contentId: string) => void
-  removeFromWatchlist: (contentId: string) => void
+  addToWatchlist: (contentId: string) => Promise<void>
+  removeFromWatchlist: (contentId: string) => Promise<void>
   isInWatchlist: (contentId: string) => boolean
 }
 
@@ -45,6 +46,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const signIn = useCallback(async (email: string, password: string): Promise<boolean> => {
+    const res = await fetch("/api/auth/sign-in", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    })
+    if (!res.ok) return false
+    const json = (await res.json().catch(() => null)) as { user?: User } | null
+    if (json?.user) {
+      setUser(json.user)
+      return true
+    }
+    return false
+  }, [])
+
   const requestOtp = useCallback(async (email: string, purpose: "signin" | "signup"): Promise<boolean> => {
     const res = await fetch("/api/auth/request-otp", {
       method: "POST",
@@ -74,19 +90,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [])
 
-  const addToWatchlist = useCallback((contentId: string) => {
+  const addToWatchlist = useCallback(async (contentId: string) => {
     setUser((prev) => {
       if (!prev) return prev
       if (prev.watchlist.includes(contentId)) return prev
       return { ...prev, watchlist: [...prev.watchlist, contentId] }
     })
+
+    const res = await fetch("/api/wishlist/add", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ imdbId: contentId }),
+    }).catch(() => null)
+
+    const json = (res && (await res.json().catch(() => null))) as { watchlist?: unknown } | null
+    if (json?.watchlist && Array.isArray(json.watchlist)) {
+      setUser((prev) => (prev ? { ...prev, watchlist: json.watchlist as string[] } : prev))
+    }
   }, [])
 
-  const removeFromWatchlist = useCallback((contentId: string) => {
+  const removeFromWatchlist = useCallback(async (contentId: string) => {
     setUser((prev) => {
       if (!prev) return prev
       return { ...prev, watchlist: prev.watchlist.filter((id) => id !== contentId) }
     })
+
+    const res = await fetch("/api/wishlist/remove", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ imdbId: contentId }),
+    }).catch(() => null)
+
+    const json = (res && (await res.json().catch(() => null))) as { watchlist?: unknown } | null
+    if (json?.watchlist && Array.isArray(json.watchlist)) {
+      setUser((prev) => (prev ? { ...prev, watchlist: json.watchlist as string[] } : prev))
+    }
   }, [])
 
   const isInWatchlist = useCallback(
@@ -101,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isAuthenticated: !!user,
+        signIn,
         requestOtp,
         verifyOtp,
         signOut,
