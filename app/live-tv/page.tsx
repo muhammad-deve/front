@@ -6,9 +6,11 @@ import { Footer } from "@/components/footer"
 import { ChannelCard } from "@/components/channel-card"
 import type { Channel } from "@/lib/types"
 import { listCategories, listChannels, listCountries } from "@/lib/pb"
-import { Radio, X } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Search, SlidersHorizontal, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 import {
 	Select,
 	SelectContent,
@@ -18,7 +20,8 @@ import {
 } from "@/components/ui/select"
 
 export default function LiveTVPage() {
-  const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
+	const router = useRouter()
+	const searchParams = useSearchParams()
 	const [channels, setChannels] = useState<Channel[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -26,15 +29,28 @@ export default function LiveTVPage() {
 	const [totalPages, setTotalPages] = useState(1)
 	const [totalItems, setTotalItems] = useState(0)
 	const [activeFilter, setActiveFilter] = useState("")
+	const [activeSort, setActiveSort] = useState("title")
 	const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([])
 	const [countryOptions, setCountryOptions] = useState<Array<{ id: string; name: string }>>([])
-	const [relatedChannels, setRelatedChannels] = useState<Channel[]>([])
-	const [isLoadingRelated, setIsLoadingRelated] = useState(false)
 	const [query, setQuery] = useState("")
 	const [selectedCategory, setSelectedCategory] = useState<string>("all")
 	const [selectedCountry, setSelectedCountry] = useState<string>("all")
+	const [showAll, setShowAll] = useState(true)
+	const [sortMode, setSortMode] = useState<"quality" | "name">("quality")
+	const [showFilters, setShowFilters] = useState(false)
 
 	const PER_PAGE = 96
+
+	useEffect(() => {
+		const raw = (searchParams?.get("showAll") || "").toLowerCase().trim()
+		if (raw === "1" || raw === "true" || raw === "yes") setShowAll(true)
+	}, [searchParams])
+
+	useEffect(() => {
+		if (query.trim() || selectedCategory !== "all" || selectedCountry !== "all") {
+			setShowAll(true)
+		}
+	}, [query, selectedCategory, selectedCountry])
 
 	const esc = (v: string) => v.replaceAll('"', "\\\"")
 	const buildFilter = () => {
@@ -44,6 +60,15 @@ export default function LiveTVPage() {
 		if (selectedCategory !== "all") parts.push(`category ?= "${esc(selectedCategory)}"`)
 		if (selectedCountry !== "all") parts.push(`country = "${esc(selectedCountry)}"`)
 		return parts.join(" && ")
+	}
+
+	const resetFilters = () => {
+		setQuery("")
+		setSelectedCategory("all")
+		setSelectedCountry("all")
+		setSortMode("quality")
+		setShowAll(true)
+		setShowFilters(false)
 	}
 
 	useEffect(() => {
@@ -68,9 +93,11 @@ export default function LiveTVPage() {
 		let cancelled = false
 		const timer = setTimeout(() => {
 			const filter = buildFilter()
+			const pbSort = sortMode === "name" ? "title" : "-quality,title"
 			setIsLoading(true)
 			setActiveFilter(filter)
-			listChannels({ page: 1, perPage: PER_PAGE, sort: "title", filter })
+			setActiveSort(pbSort)
+			listChannels({ page: 1, perPage: PER_PAGE, sort: pbSort, filter })
 				.then((resp) => {
 					if (cancelled) return
 					setChannels(resp.items)
@@ -95,53 +122,28 @@ export default function LiveTVPage() {
 			cancelled = true
 			clearTimeout(timer)
 		}
-	}, [query, selectedCategory, selectedCountry])
+	}, [query, selectedCategory, selectedCountry, sortMode])
 
-	useEffect(() => {
-		let cancelled = false
-		if (!activeChannel) {
-			setRelatedChannels([])
-			setIsLoadingRelated(false)
-			return
-		}
-
-		const loadRelated = async () => {
-			const parts: string[] = []
-			if (activeChannel.categoryIds?.[0]) {
-				parts.push(`category ?= "${activeChannel.categoryIds[0].replaceAll('"', "\\\"")}"`)
-			}
-			if (activeChannel.countryId) {
-				parts.push(`country = "${activeChannel.countryId.replaceAll('"', "\\\"")}"`)
-			}
-			parts.push(`id != "${activeChannel.id.replaceAll('"', "\\\"")}"`)
-			const filter = parts.join(" && ")
-
-			const resp = await listChannels({ page: 1, perPage: 12, sort: "title", filter })
-			return resp.items
-		}
-
-		setIsLoadingRelated(true)
-		loadRelated()
-			.then((items) => {
-				if (cancelled) return
-				setRelatedChannels(items)
-			})
-			.catch(() => {
-				if (cancelled) return
-				setRelatedChannels([])
-			})
-			.finally(() => {
-				if (cancelled) return
-				setIsLoadingRelated(false)
-			})
-
-		return () => {
-			cancelled = true
-		}
-	}, [activeChannel])
+	const qualityScore = (q?: string): number => {
+		const s = (q || "").toLowerCase().trim()
+		const m = s.match(/(\d{3,4})\s*p/)
+		if (m) return Number(m[1])
+		if (s.includes("4k") || s.includes("2160")) return 2160
+		if (s.includes("fhd") || s.includes("full hd")) return 1080
+		if (s.includes("hd")) return 720
+		if (s.includes("sd")) return 480
+		return 0
+	}
 
 	const normalized = channels.map((c) => ({ ...c, category: c.category?.trim() || c.categories?.[0] || "Other" }))
-	const categories = [...new Set(normalized.map((c) => c.category).filter(Boolean))]
+	const sorted = [...normalized].sort((a, b) => {
+		if (sortMode === "quality") {
+			const dq = qualityScore(b.quality) - qualityScore(a.quality)
+			if (dq !== 0) return dq
+		}
+		return a.name.localeCompare(b.name)
+	})
+	const categories = [...new Set(sorted.map((c) => c.category).filter(Boolean))].sort((a, b) => a.localeCompare(b))
 
 	const canLoadMore = !isLoading && page < totalPages
 	const loadMore = async () => {
@@ -149,7 +151,7 @@ export default function LiveTVPage() {
 		setIsLoadingMore(true)
 		try {
 			const nextPage = page + 1
-			const resp = await listChannels({ page: nextPage, perPage: PER_PAGE, sort: "title", filter: activeFilter })
+			const resp = await listChannels({ page: nextPage, perPage: PER_PAGE, sort: activeSort, filter: activeFilter })
 			setChannels((prev) => [...prev, ...resp.items])
 			setPage(resp.page)
 			setTotalPages(resp.totalPages)
@@ -164,165 +166,187 @@ export default function LiveTVPage() {
       <Header />
 
       <div className="container mx-auto px-4 pt-24 lg:pt-32 pb-8">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-            <Radio className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Live TV</h1>
-            <p className="text-muted-foreground">
-					{isLoading ? "Loading channels..." : `${totalItems} channels streaming live`}
-			</p>
-          </div>
-        </div>
-
-			<div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-4">
-				<Input
-					placeholder="Search channels..."
-					value={query}
-					onChange={(e) => setQuery(e.target.value)}
-					className="h-11 bg-secondary border-border"
-				/>
-
-				<Select value={selectedCategory} onValueChange={setSelectedCategory}>
-					<SelectTrigger className="w-full h-11 bg-secondary border-border">
-						<SelectValue placeholder="Category" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All categories</SelectItem>
-						{categoryOptions.map((c) => (
-							<SelectItem key={c.id} value={c.id}>
-								{c.name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-
-				<Select value={selectedCountry} onValueChange={setSelectedCountry}>
-					<SelectTrigger className="w-full h-11 bg-secondary border-border">
-						<SelectValue placeholder="Country" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All countries</SelectItem>
-						{countryOptions.map((c) => (
-							<SelectItem key={c.id} value={c.id}>
-								{c.name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
-
-        {/* Active Player Modal */}
-        {activeChannel && (
-          <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-5xl">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5 px-2 py-1 bg-destructive text-destructive-foreground text-xs font-bold rounded">
-                    <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
-                    LIVE
-                  </div>
-                  <h2 className="text-xl font-bold text-foreground">{activeChannel.name}</h2>
-                  {activeChannel.quality && (
-                    <span className="px-2 py-1 bg-secondary text-foreground text-xs font-bold rounded">
-                      {activeChannel.quality}
-                    </span>
-                  )}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setActiveChannel(null)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X className="w-6 h-6" />
-                </Button>
-              </div>
-
-              {/* Video Player */}
-              <div className="aspect-video bg-black rounded-xl overflow-hidden border border-border">
-                <iframe
-                  src={activeChannel.url}
-                  title={activeChannel.name}
-                  className="w-full h-full"
-                  allowFullScreen
-                  allow="autoplay; encrypted-media"
-                />
-              </div>
-
-              {(activeChannel.category || activeChannel.country) && (
-                <div className="mt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-foreground">More like this</h3>
-                  </div>
-                  {isLoadingRelated ? (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">Loading...</p>
-                    </div>
-                  ) : relatedChannels.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                      {relatedChannels.map((ch) => (
-                        <ChannelCard key={ch.id} channel={ch} onWatch={setActiveChannel} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">No similar channels found.</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="mt-4 flex items-center justify-between">
-                <p className="text-muted-foreground">
-                  Category: <span className="text-foreground">{activeChannel.category}</span>
-                </p>
-                <Button variant="secondary" onClick={() => setActiveChannel(null)}>
-                  Close Player
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-			{/* Channels by Category */}
-			{isLoading ? (
-				<div className="text-center py-16">
-					<p className="text-muted-foreground">Loading...</p>
-				</div>
-			) : normalized.length === 0 ? (
-				<div className="text-center py-16">
-					<p className="text-muted-foreground">No channels match your filters.</p>
-				</div>
-			) : (
-				categories.map((category) => (
-					<section key={category} className="mb-12">
-						<h2 className="text-xl font-bold text-foreground mb-4">{category}</h2>
-						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-							{normalized
-								.filter((c) => c.category === category)
-								.map((channel) => (
-									<ChannelCard key={channel.id} channel={channel} onWatch={setActiveChannel} />
-								))}
+				{/* Search Header (match Movies Search page) */}
+				<div className="mb-8">
+					<h1 className="text-3xl font-bold text-foreground mb-4">Live TV</h1>
+					<div className="flex flex-col sm:flex-row gap-4">
+						<div className="relative flex-1">
+							<Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+							<Input
+								type="search"
+								placeholder="Search TV channels..."
+								value={query}
+								onChange={(e) => setQuery(e.target.value)}
+								className="pl-12 h-12 bg-secondary border-border focus:ring-primary text-lg w-full max-w-3xl mx-auto"
+							/>
+							{query && (
+								<button
+									onClick={() => setQuery("")}
+									className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+								>
+									<X className="w-5 h-5" />
+								</button>
+							)}
 						</div>
-					</section>
-				))
-			)}
-
-			{!isLoading && normalized.length > 0 && (
-				<div className="flex justify-center mt-8">
-					<Button
-						variant="secondary"
-						onClick={loadMore}
-						disabled={!canLoadMore || isLoadingMore}
-						className="min-w-40"
-					>
-						{isLoadingMore ? "Loading..." : canLoadMore ? "Load more" : "No more channels"}
-					</Button>
+						<div className="flex items-center gap-2">
+							<Button
+								variant="secondary"
+								className="lg:hidden"
+								onClick={() => setShowFilters((v) => !v)}
+							>
+								<SlidersHorizontal className="w-5 h-5 mr-2" />
+								Filters
+							</Button>
+						</div>
+					</div>
 				</div>
-			)}
+
+				<div className="flex flex-col lg:flex-row gap-8">
+					{/* Filters Sidebar */}
+					<aside
+						className={cn("w-full lg:w-72 flex-shrink-0", showFilters ? "block" : "hidden lg:block")}
+					>
+						<div className="bg-card border border-border rounded-xl p-6 space-y-6">
+							<div className="flex items-center justify-between">
+								<h2 className="font-semibold text-foreground">Filters</h2>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={resetFilters}
+									className="text-muted-foreground hover:text-foreground"
+								>
+									<X className="w-4 h-4 mr-1" />
+									Reset
+								</Button>
+							</div>
+
+							<div className="space-y-2">
+								<p className="text-xs uppercase tracking-wide text-muted-foreground">Category</p>
+								<Select value={selectedCategory} onValueChange={setSelectedCategory}>
+									<SelectTrigger className="bg-secondary border-border">
+										<SelectValue placeholder="All categories" />
+									</SelectTrigger>
+									<SelectContent className="bg-card border-border">
+										<SelectItem value="all">All categories</SelectItem>
+										{categoryOptions.map((c) => (
+											<SelectItem key={c.id} value={c.id}>
+												{c.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+
+							<div className="space-y-2">
+								<p className="text-xs uppercase tracking-wide text-muted-foreground">Country</p>
+								<Select value={selectedCountry} onValueChange={setSelectedCountry}>
+									<SelectTrigger className="bg-secondary border-border">
+										<SelectValue placeholder="All countries" />
+									</SelectTrigger>
+									<SelectContent className="bg-card border-border">
+										<SelectItem value="all">All countries</SelectItem>
+										{countryOptions.map((c) => (
+											<SelectItem key={c.id} value={c.id}>
+												{c.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+
+							<div className="space-y-2">
+								<p className="text-xs uppercase tracking-wide text-muted-foreground">Sort</p>
+								<Select
+									value={sortMode}
+									onValueChange={(v) => setSortMode(v === "name" ? "name" : "quality")}
+								>
+									<SelectTrigger className="bg-secondary border-border">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent className="bg-card border-border">
+										<SelectItem value="quality">Highest quality</SelectItem>
+										<SelectItem value="name">Name (A-Z)</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+
+							<div className="pt-2">
+								<Button variant="secondary" className="w-full" onClick={() => setShowAll((v) => !v)}>
+									{showAll ? "Group by category" : "Show all channels"}
+								</Button>
+							</div>
+						</div>
+					</aside>
+
+					{/* Results */}
+					<div className="flex-1">
+						<div className="flex items-center justify-between mb-4">
+							<p className="text-muted-foreground">
+								{isLoading ? "Loading..." : `${totalItems} channel${totalItems !== 1 ? "s" : ""} streaming live`}
+								{query && (
+									<>
+										{" "}
+										for <span className="text-foreground font-medium">&quot;{query}&quot;</span>
+									</>
+								)}
+							</p>
+						</div>
+
+						{isLoading ? (
+							<div className="text-center py-16">
+								<p className="text-muted-foreground">Loading...</p>
+							</div>
+						) : normalized.length === 0 ? (
+							<div className="text-center py-16">
+								<h2 className="text-xl font-semibold text-foreground mb-2">No channels found</h2>
+								<p className="text-muted-foreground mb-4">Try adjusting your search or filters</p>
+								<Button variant="secondary" onClick={resetFilters}>
+									Reset Filters
+								</Button>
+							</div>
+						) : showAll ? (
+							<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 lg:gap-6">
+								{sorted.map((channel) => (
+									<ChannelCard
+										key={channel.id}
+										channel={channel}
+										onWatch={(ch) => router.push(`/live-tv/${ch.id}`)}
+									/>
+								))}
+							</div>
+						) : (
+							categories.map((category) => (
+								<section key={category} className="mb-12">
+									<h2 className="text-xl font-bold text-foreground mb-4">{category}</h2>
+									<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 lg:gap-6">
+										{sorted
+											.filter((c) => c.category === category)
+											.map((channel) => (
+												<ChannelCard
+													key={channel.id}
+													channel={channel}
+													onWatch={(ch) => router.push(`/live-tv/${ch.id}`)}
+												/>
+										))}
+									</div>
+								</section>
+							))
+						)}
+
+						{!isLoading && normalized.length > 0 && (
+							<div className="flex justify-center mt-8">
+								<Button
+									variant="secondary"
+									onClick={loadMore}
+									disabled={!canLoadMore || isLoadingMore}
+									className="min-w-40"
+								>
+									{isLoadingMore ? "Loading..." : canLoadMore ? "Load more" : "No more channels"}
+								</Button>
+							</div>
+						)}
+					</div>
+				</div>
       </div>
 
       <Footer />

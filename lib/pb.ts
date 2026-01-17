@@ -668,8 +668,26 @@ export async function listChannels(opts?: {
     filter: opts?.filter,
     sort: opts?.sort || "title",
     expand: "category,country",
-    fields: "id,title,logo_url,is_logo_available,quality,stream_url,country,category,expand.category,expand.country",
   })
+
+  const extractCountryLanguage = (country: unknown): string | undefined => {
+    if (!country || typeof country !== "object") return undefined
+    const c = country as Record<string, unknown>
+    const pick = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined)
+
+    const direct = pick(c.language) || pick(c.languages) || pick(c.lang) || pick(c.langs)
+    if (direct) return direct
+
+    const fromArray = (v: unknown): string | undefined => {
+      if (!Array.isArray(v)) return undefined
+      const parts = v
+        .map((x) => (typeof x === "string" ? x.trim() : ""))
+        .filter(Boolean)
+      return parts.length > 0 ? parts.join(", ") : undefined
+    }
+
+    return fromArray(c.languages) || fromArray(c.language) || fromArray(c.langs)
+  }
 
   const items: Channel[] = []
   for (const r of resp.items) {
@@ -683,6 +701,7 @@ export async function listChannels(opts?: {
 
     const category = categories[0] || undefined
     const country = typeof r.expand?.country?.name === "string" ? r.expand.country.name.trim() : undefined
+    const language = extractCountryLanguage(r.expand?.country)
 
     const isLogoAvailable = typeof r.is_logo_available === "boolean" ? r.is_logo_available : undefined
     const logoUrl = (r.logo_url || "").trim()
@@ -705,6 +724,7 @@ export async function listChannels(opts?: {
       country: country || undefined,
       categoryIds,
       countryId,
+      language,
     })
   }
 
@@ -715,6 +735,14 @@ export async function listChannels(opts?: {
     page: resp.page,
     perPage: resp.perPage,
   }
+}
+
+export async function getChannelById(id: string): Promise<Channel | null> {
+  const channelId = id.trim()
+  if (!channelId) return null
+  const esc = (v: string) => v.replaceAll('"', "\\\"")
+  const resp = await listChannels({ page: 1, perPage: 1, filter: `id="${esc(channelId)}"` })
+  return resp.items[0] || null
 }
 
 export async function findGenreBySlug(slug: string): Promise<{ id: string; name: string } | null> {

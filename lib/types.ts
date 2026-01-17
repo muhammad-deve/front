@@ -76,6 +76,7 @@ export interface Channel {
   categoryIds?: string[]
   country?: string
   countryId?: string
+  language?: string
 }
 
 export interface User {

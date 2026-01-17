@@ -24,11 +24,20 @@ export function ChannelCard({ channel, onWatch }: ChannelCardProps) {
   return (
     <div
       className={cn(
-        "relative group rounded-xl overflow-hidden bg-card border border-border transition-all duration-300",
+        "relative group rounded-xl overflow-hidden bg-card border border-border transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         isHovered && "scale-105 shadow-2xl shadow-primary/10 border-primary/50",
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={() => onWatch(channel)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onWatch(channel)
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
       {/* Live Badge */}
       <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-2 py-1 bg-destructive text-destructive-foreground text-xs font-bold rounded">
@@ -81,11 +90,21 @@ export function ChannelCard({ channel, onWatch }: ChannelCardProps) {
           <div>
             <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">{channel.name}</h3>
             {channel.category && <p className="text-sm text-muted-foreground">{channel.category}</p>}
+				{(channel.country || channel.language) && (
+					<p className="text-sm text-muted-foreground">
+						{[channel.country, channel.language]
+							.filter((v): v is string => Boolean(v))
+							.join(" • ")}
+					</p>
+				)}
           </div>
           <Radio className="w-5 h-5 text-primary flex-shrink-0" />
         </div>
         <Button
-          onClick={() => onWatch(channel)}
+          onClick={(e) => {
+            e.stopPropagation()
+            onWatch(channel)
+          }}
           className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90"
         >
           Watch Live
