@@ -27,6 +27,7 @@ export default function ProfilePage() {
   const [isLoadingList, setIsLoadingList] = useState(false)
 	const [avatarError, setAvatarError] = useState<string>("")
 	const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+	const [isAvatarPreviewOpen, setIsAvatarPreviewOpen] = useState(false)
 	const avatarInputRef = useRef<HTMLInputElement>(null)
 
   const name = useMemo(() => {
@@ -114,6 +115,15 @@ export default function ProfilePage() {
 		await uploadAvatar(file)
 	}
 
+	useEffect(() => {
+		if (!isAvatarPreviewOpen) return
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape") setIsAvatarPreviewOpen(false)
+		}
+		window.addEventListener("keydown", onKeyDown)
+		return () => window.removeEventListener("keydown", onKeyDown)
+	}, [isAvatarPreviewOpen])
+
   return (
     <main className="min-h-screen bg-background">
       <Header />
@@ -129,8 +139,9 @@ export default function ProfilePage() {
                     <img
                       src={user.avatar}
                       alt="Profile"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover cursor-pointer"
                       referrerPolicy="no-referrer"
+                      onClick={() => setIsAvatarPreviewOpen(true)}
                     />
                   ) : (
                     <span className="text-xl font-extrabold text-primary-foreground">
@@ -239,6 +250,25 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {isAvatarPreviewOpen && user?.avatar ? (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setIsAvatarPreviewOpen(false)}
+          >
+            <div
+              className="max-w-3xl w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={user.avatar}
+                alt="Profile"
+                className="w-full h-auto rounded-2xl border border-border object-contain bg-black"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          </div>
+        ) : null}
 
         <div className="flex items-center justify-between gap-4 mt-10 mb-6">
           <div className="flex items-center gap-3">
