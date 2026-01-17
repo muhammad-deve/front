@@ -153,11 +153,11 @@ export default function LiveTVChannelPage() {
               )}
             </div>
 
-            <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-border">
+            <div className="relative aspect-video min-h-[220px] sm:min-h-[360px] lg:min-h-[480px] bg-black rounded-xl overflow-hidden border border-border">
               {!playerLoaded && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70">
-                  <Loader2 className="w-7 h-7 text-white animate-spin" />
-                  <p className="text-sm text-white/80">Loading stream...</p>
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/70">
+                  <Loader2 className="w-12 h-12 text-white animate-spin" />
+                  <p className="text-base text-white/80">Loading stream...</p>
                 </div>
               )}
               <iframe
@@ -190,7 +190,7 @@ export default function LiveTVChannelPage() {
             <div className="mt-10">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-foreground">More like this</h2>
-                <Button variant="secondary" onClick={() => router.push("/live-tv?showAll=1")}>Show all TV channels</Button>
+                <Button variant="secondary" onClick={() => router.push("/live-tv?showAll=1")}>Show all</Button>
               </div>
 
               {isLoadingRelated ? (

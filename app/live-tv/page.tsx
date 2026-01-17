@@ -170,23 +170,25 @@ export default function LiveTVPage() {
 				<div className="mb-8">
 					<h1 className="text-3xl font-bold text-foreground mb-4">Live TV</h1>
 					<div className="flex flex-col sm:flex-row gap-4">
-						<div className="relative flex-1">
-							<Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-							<Input
-								type="search"
-								placeholder="Search TV channels..."
-								value={query}
-								onChange={(e) => setQuery(e.target.value)}
-								className="pl-12 h-12 bg-secondary border-border focus:ring-primary text-lg w-full max-w-3xl mx-auto"
-							/>
-							{query && (
-								<button
-									onClick={() => setQuery("")}
-									className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-								>
-									<X className="w-5 h-5" />
-								</button>
-							)}
+						<div className="flex-1">
+							<div className="relative w-full max-w-3xl mx-auto">
+								<Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+								<Input
+									type="search"
+									placeholder="Search TV channels..."
+									value={query}
+									onChange={(e) => setQuery(e.target.value)}
+									className="pl-12 h-12 bg-secondary border-border focus:ring-primary text-lg w-full"
+								/>
+								{query && (
+									<button
+										onClick={() => setQuery("")}
+										className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+									>
+										<X className="w-5 h-5" />
+									</button>
+								)}
+							</div>
 						</div>
 						<div className="flex items-center gap-2">
 							<Button
