@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { AuthProvider } from "@/components/auth-provider"
 import { ThemeProvider } from "@/components/theme-provider"
+import { StreamlyChat } from "@/components/streamly-chat"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -27,12 +28,15 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`font-sans antialiased`}>
         <ThemeProvider
-			attribute="class"
-			defaultTheme="cinema"
-			enableSystem={false}
-			themes={["cinema", "ocean"]}
-		>
-          <AuthProvider>{children}</AuthProvider>
+          attribute="class"
+          defaultTheme="cinema"
+          enableSystem={false}
+          themes={["cinema", "ocean"]}
+        >
+          <AuthProvider>
+            {children}
+            <StreamlyChat />
+          </AuthProvider>
         </ThemeProvider>
         <Analytics />
       </body>

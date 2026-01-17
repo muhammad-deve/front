@@ -195,6 +195,7 @@ export type SessionUser = {
   email: string
   firstName: string
   lastName: string
+  avatar?: string
   watchlist: string[]
   watchHistory: string[]
 }

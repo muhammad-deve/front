@@ -5,18 +5,11 @@ import Link from "next/link"
 import { useAuth } from "./auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Search, Menu, X, User, LogOut, Heart, Play } from "lucide-react"
+import { Search, Menu, X, Play } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 export function Header() {
-  const { user, isAuthenticated, signOut } = useAuth()
+  const { user, isAuthenticated } = useAuth()
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -97,50 +90,28 @@ export function Header() {
 			{/* Theme */}
 			<ThemeToggle />
 
-            {/* User Menu */}
-            {isAuthenticated ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-full">
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-                      <span className="text-sm font-semibold text-primary-foreground">
-                        {user?.firstName?.[0]}
-                        {user?.lastName?.[0]}
-                      </span>
-                    </div>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 bg-card border-border">
-                  <div className="px-3 py-2">
-                    <p className="font-medium text-foreground">
-                      {user?.firstName} {user?.lastName}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{user?.email}</p>
-                  </div>
-                  <DropdownMenuSeparator className="bg-border" />
-                  <DropdownMenuItem asChild>
-                    <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
-                      <User className="w-4 h-4" />
-                      Profile
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/watchlist" className="flex items-center gap-2 cursor-pointer">
-                      <Heart className="w-4 h-4" />
-                      My List
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-border" />
-                  <DropdownMenuItem
-                    onClick={signOut}
-                    className="flex items-center gap-2 cursor-pointer text-destructive"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
+            {/* User */}
+			{isAuthenticated ? (
+				<Button asChild variant="ghost" size="icon" className="rounded-full">
+					<Link href="/profile" aria-label="Open profile">
+						{user?.avatar ? (
+							<img
+								src={user.avatar}
+								alt="Profile"
+								className="w-8 h-8 rounded-full object-cover"
+								referrerPolicy="no-referrer"
+							/>
+						) : (
+							<div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+								<span className="text-sm font-semibold text-primary-foreground">
+									{user?.firstName?.[0]}
+									{user?.lastName?.[0]}
+								</span>
+							</div>
+						)}
+					</Link>
+				</Button>
+			) : (
               <div className="hidden sm:flex items-center gap-2">
                 <Button variant="ghost" asChild>
                   <Link href="/sign-in">Sign In</Link>

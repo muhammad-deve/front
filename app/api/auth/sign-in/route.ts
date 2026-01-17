@@ -10,6 +10,12 @@ function splitName(name: string): { firstName: string; lastName: string } {
   return { firstName, lastName }
 }
 
+function pbUserAvatarUrl(userId: string, avatarFilename: string): string {
+  const fn = avatarFilename.trim()
+  if (!fn) return ""
+  return new URL(`/api/files/users/${userId}/${encodeURIComponent(fn)}`, pbBaseUrl()).toString()
+}
+
 async function pbAdminFetch(path: string, init?: RequestInit) {
   const authorization = await getPocketBaseAuthorizationHeaderValue()
   return fetch(new URL(path, pbBaseUrl()).toString(), {
@@ -22,20 +28,29 @@ async function pbAdminFetch(path: string, init?: RequestInit) {
   })
 }
 
-async function pbFindUserByEmail(email: string): Promise<{ id: string; email: string; name?: string } | null> {
+async function pbFindUserByEmail(
+  email: string,
+): Promise<{ id: string; email: string; name?: string; avatar?: string } | null> {
   const safeEmail = email.replaceAll('"', "\\\"")
   const url = new URL("/api/collections/users/records", pbBaseUrl())
   url.searchParams.set("page", "1")
   url.searchParams.set("perPage", "1")
   url.searchParams.set("filter", `email=\"${safeEmail}\"`)
-  url.searchParams.set("fields", "id,email,name")
+  url.searchParams.set("fields", "id,email,name,avatar")
 
   const res = await pbAdminFetch(url.pathname + url.search)
   if (!res.ok) return null
-  const json = (await res.json().catch(() => null)) as { items?: Array<{ id?: unknown; email?: unknown; name?: unknown }> } | null
+  const json = (await res.json().catch(() => null)) as {
+    items?: Array<{ id?: unknown; email?: unknown; name?: unknown; avatar?: unknown }>
+  } | null
   const item = json?.items?.[0]
   if (!item || typeof item.id !== "string" || typeof item.email !== "string") return null
-  return { id: item.id, email: item.email, name: typeof item.name === "string" ? item.name : undefined }
+  return {
+    id: item.id,
+    email: item.email,
+    name: typeof item.name === "string" ? item.name : undefined,
+    avatar: typeof item.avatar === "string" ? item.avatar : undefined,
+  }
 }
 
 type WishlistRec = {
@@ -98,12 +113,14 @@ export async function POST(req: Request) {
 
     const { firstName, lastName } = pbUser.name ? splitName(pbUser.name) : { firstName: "User", lastName: "" }
     const watchlist = await pbGetWishlistImdbIds(pbUser.id)
+    const avatar = pbUser.avatar ? pbUserAvatarUrl(pbUser.id, pbUser.avatar) : undefined
 
     const user = {
       id: pbUser.id || sha256Hex(email).slice(0, 12),
       email,
       firstName,
       lastName,
+      avatar,
       watchlist,
       watchHistory: [],
     }

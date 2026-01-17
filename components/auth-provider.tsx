@@ -9,6 +9,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<boolean>
   requestOtp: (email: string, purpose: "signin" | "signup") => Promise<boolean>
   verifyOtp: (data: VerifyOtpData) => Promise<boolean>
+  refreshUser: () => Promise<void>
   signOut: () => Promise<void>
   addToWatchlist: (contentId: string) => Promise<void>
   removeFromWatchlist: (contentId: string) => Promise<void>
@@ -28,6 +29,18 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+
+	const refreshUser = useCallback(async () => {
+		const data = (await fetch("/api/auth/me", { cache: "no-store" })
+			.then((r) => (r.ok ? r.json() : null))
+			.catch(() => null)) as { user?: unknown } | null
+		const u = data?.user
+		if (u && typeof u === "object") {
+			setUser(u as User)
+		} else {
+			setUser(null)
+		}
+	}, [])
 
   useEffect(() => {
     let cancelled = false
@@ -142,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         requestOtp,
         verifyOtp,
+			refreshUser,
         signOut,
         addToWatchlist,
         removeFromWatchlist,

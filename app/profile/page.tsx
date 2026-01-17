@@ -7,7 +7,8 @@ import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import type React from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { Content } from "@/lib/types"
 import { getContentByImdb } from "@/lib/pb"
 import { User as UserIcon, Mail, Heart, LogOut, LogIn, ChevronRight } from "lucide-react"
@@ -21,9 +22,12 @@ function initials(firstName?: string, lastName?: string): string {
 }
 
 export default function ProfilePage() {
-  const { user, isAuthenticated, signOut } = useAuth()
+  const { user, isAuthenticated, signOut, refreshUser } = useAuth()
   const [watchlistContent, setWatchlistContent] = useState<Content[]>([])
   const [isLoadingList, setIsLoadingList] = useState(false)
+	const [avatarError, setAvatarError] = useState<string>("")
+	const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+	const avatarInputRef = useRef<HTMLInputElement>(null)
 
   const name = useMemo(() => {
     const first = (user?.firstName || "").trim()
@@ -84,6 +88,32 @@ export default function ProfilePage() {
 
   const watchlistCount = user?.watchlist?.length || 0
 
+	const uploadAvatar = async (file: File) => {
+		setAvatarError("")
+		setIsUploadingAvatar(true)
+		try {
+			const form = new FormData()
+			form.append("avatar", file)
+			const res = await fetch("/api/profile/avatar", { method: "POST", body: form })
+			const json = (await res.json().catch(() => null)) as { error?: unknown } | null
+			if (!res.ok) {
+				const msg = typeof json?.error === "string" ? json.error : "Failed to upload"
+				setAvatarError(msg)
+				return
+			}
+			await refreshUser()
+		} finally {
+			setIsUploadingAvatar(false)
+		}
+	}
+
+	const onAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0]
+		e.target.value = ""
+		if (!file) return
+		await uploadAvatar(file)
+	}
+
   return (
     <main className="min-h-screen bg-background">
       <Header />
@@ -94,8 +124,19 @@ export default function ProfilePage() {
           <div className="relative p-6 lg:p-8">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-                  <span className="text-xl font-extrabold text-primary-foreground">{initials(user?.firstName, user?.lastName)}</span>
+                <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20 overflow-hidden">
+                  {user?.avatar ? (
+                    <img
+                      src={user.avatar}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span className="text-xl font-extrabold text-primary-foreground">
+                      {initials(user?.firstName, user?.lastName)}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -111,6 +152,24 @@ export default function ProfilePage() {
                       <Mail className="w-4 h-4" />
                       {user?.email}
                     </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={onAvatarChange}
+                    />
+                    <Button
+                      variant="secondary"
+                      disabled={isUploadingAvatar}
+                      onClick={() => avatarInputRef.current?.click()}
+                    >
+                      {isUploadingAvatar ? "Uploading..." : "Change photo"}
+                    </Button>
+                    {avatarError ? <p className="text-sm text-destructive">{avatarError}</p> : null}
                   </div>
                 </div>
               </div>
