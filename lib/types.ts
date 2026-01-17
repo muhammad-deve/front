@@ -68,11 +68,14 @@ export interface Channel {
   id: string
   name: string
   logo?: string
+  isLogoAvailable?: boolean
   quality?: string
   url: string
   category?: string
   categories?: string[]
+  categoryIds?: string[]
   country?: string
+  countryId?: string
 }
 
 export interface User {

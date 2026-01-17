@@ -5,7 +5,7 @@ import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ChannelCard } from "@/components/channel-card"
 import type { Channel } from "@/lib/types"
-import { listChannels } from "@/lib/pb"
+import { listCategories, listChannels, listCountries } from "@/lib/pb"
 import { Radio, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,73 +21,143 @@ export default function LiveTVPage() {
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
 	const [channels, setChannels] = useState<Channel[]>([])
 	const [isLoading, setIsLoading] = useState(true)
+	const [isLoadingMore, setIsLoadingMore] = useState(false)
+	const [page, setPage] = useState(1)
+	const [totalPages, setTotalPages] = useState(1)
+	const [totalItems, setTotalItems] = useState(0)
+	const [activeFilter, setActiveFilter] = useState("")
+	const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([])
+	const [countryOptions, setCountryOptions] = useState<Array<{ id: string; name: string }>>([])
+	const [relatedChannels, setRelatedChannels] = useState<Channel[]>([])
+	const [isLoadingRelated, setIsLoadingRelated] = useState(false)
 	const [query, setQuery] = useState("")
 	const [selectedCategory, setSelectedCategory] = useState<string>("all")
 	const [selectedCountry, setSelectedCountry] = useState<string>("all")
 
+	const PER_PAGE = 96
+
+	const esc = (v: string) => v.replaceAll('"', "\\\"")
+	const buildFilter = () => {
+		const parts: string[] = []
+		const q = query.trim()
+		if (q) parts.push(`title~"${esc(q)}"`)
+		if (selectedCategory !== "all") parts.push(`category ?= "${esc(selectedCategory)}"`)
+		if (selectedCountry !== "all") parts.push(`country = "${esc(selectedCountry)}"`)
+		return parts.join(" && ")
+	}
+
 	useEffect(() => {
 		let cancelled = false
-		setIsLoading(true)
-
-		const loadAll = async () => {
-			const out: Channel[] = []
-			let page = 1
-			let totalPages = 1
-			while (page <= totalPages) {
-				const resp = await listChannels({ page, perPage: 200, sort: "title" })
-				out.push(...resp.items)
-				totalPages = resp.totalPages
-				page += 1
-			}
-			return out
-		}
-
-		loadAll()
-			.then((items) => {
+		Promise.all([listCategories(), listCountries()])
+			.then(([cats, countries]) => {
 				if (cancelled) return
-				setChannels(items)
+				setCategoryOptions(cats)
+				setCountryOptions(countries)
 			})
 			.catch(() => {
 				if (cancelled) return
-				setChannels([])
-			})
-			.finally(() => {
-				if (cancelled) return
-				setIsLoading(false)
+				setCategoryOptions([])
+				setCountryOptions([])
 			})
 		return () => {
 			cancelled = true
 		}
 	}, [])
 
-	const allCategories = [
-		...new Set(channels.flatMap((c) => c.categories || (c.category ? [c.category] : [])).filter((v): v is string => Boolean(v))),
-	].sort((a, b) => a.localeCompare(b))
-	const allCountries = [...new Set(channels.map((c) => c.country).filter((v): v is string => Boolean(v)))].sort((a, b) =>
-		a.localeCompare(b),
-	)
+	useEffect(() => {
+		let cancelled = false
+		const timer = setTimeout(() => {
+			const filter = buildFilter()
+			setIsLoading(true)
+			setActiveFilter(filter)
+			listChannels({ page: 1, perPage: PER_PAGE, sort: "title", filter })
+				.then((resp) => {
+					if (cancelled) return
+					setChannels(resp.items)
+					setPage(resp.page)
+					setTotalPages(resp.totalPages)
+					setTotalItems(resp.totalItems)
+				})
+				.catch(() => {
+					if (cancelled) return
+					setChannels([])
+					setPage(1)
+					setTotalPages(1)
+					setTotalItems(0)
+				})
+				.finally(() => {
+					if (cancelled) return
+					setIsLoading(false)
+				})
+		}, 250)
 
-	const q = query.trim().toLowerCase()
-	const filtered = channels.filter((c) => {
-		if (q) {
-			const hay = `${c.name} ${(c.categories || []).join(" ")} ${c.category || ""} ${c.country || ""}`.toLowerCase()
-			if (!hay.includes(q)) return false
+		return () => {
+			cancelled = true
+			clearTimeout(timer)
+		}
+	}, [query, selectedCategory, selectedCountry])
+
+	useEffect(() => {
+		let cancelled = false
+		if (!activeChannel) {
+			setRelatedChannels([])
+			setIsLoadingRelated(false)
+			return
 		}
 
-		if (selectedCategory !== "all") {
-			const cats = c.categories || (c.category ? [c.category] : [])
-			if (!cats.includes(selectedCategory)) return false
+		const loadRelated = async () => {
+			const parts: string[] = []
+			if (activeChannel.categoryIds?.[0]) {
+				parts.push(`category ?= "${activeChannel.categoryIds[0].replaceAll('"', "\\\"")}"`)
+			}
+			if (activeChannel.countryId) {
+				parts.push(`country = "${activeChannel.countryId.replaceAll('"', "\\\"")}"`)
+			}
+			parts.push(`id != "${activeChannel.id.replaceAll('"', "\\\"")}"`)
+			const filter = parts.join(" && ")
+
+			const resp = await listChannels({ page: 1, perPage: 12, sort: "title", filter })
+			return resp.items
 		}
 
-		if (selectedCountry !== "all") {
-			if ((c.country || "") !== selectedCountry) return false
+		setIsLoadingRelated(true)
+		loadRelated()
+			.then((items) => {
+				if (cancelled) return
+				setRelatedChannels(items)
+			})
+			.catch(() => {
+				if (cancelled) return
+				setRelatedChannels([])
+			})
+			.finally(() => {
+				if (cancelled) return
+				setIsLoadingRelated(false)
+			})
+
+		return () => {
+			cancelled = true
 		}
+	}, [activeChannel])
 
-		return true
-	})
-
-	const normalized = filtered.map((c) => ({ ...c, category: c.category?.trim() || c.categories?.[0] || "Other" }))
+	const normalized = channels.map((c) => ({ ...c, category: c.category?.trim() || c.categories?.[0] || "Other" }))
 	const categories = [...new Set(normalized.map((c) => c.category).filter(Boolean))]
+
+	const canLoadMore = !isLoading && page < totalPages
+	const loadMore = async () => {
+		if (isLoadingMore || !canLoadMore) return
+		setIsLoadingMore(true)
+		try {
+			const nextPage = page + 1
+			const resp = await listChannels({ page: nextPage, perPage: PER_PAGE, sort: "title", filter: activeFilter })
+			setChannels((prev) => [...prev, ...resp.items])
+			setPage(resp.page)
+			setTotalPages(resp.totalPages)
+			setTotalItems(resp.totalItems)
+		} finally {
+			setIsLoadingMore(false)
+		}
+	}
 
   return (
     <main className="min-h-screen bg-background">
@@ -102,7 +172,7 @@ export default function LiveTVPage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground">Live TV</h1>
             <p className="text-muted-foreground">
-					{isLoading ? "Loading channels..." : `${filtered.length} channels streaming live`}
+					{isLoading ? "Loading channels..." : `${totalItems} channels streaming live`}
 			</p>
           </div>
         </div>
@@ -121,9 +191,9 @@ export default function LiveTVPage() {
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="all">All categories</SelectItem>
-						{allCategories.map((c) => (
-							<SelectItem key={c} value={c}>
-								{c}
+						{categoryOptions.map((c) => (
+							<SelectItem key={c.id} value={c.id}>
+								{c.name}
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -135,9 +205,9 @@ export default function LiveTVPage() {
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="all">All countries</SelectItem>
-						{allCountries.map((c) => (
-							<SelectItem key={c} value={c}>
-								{c}
+						{countryOptions.map((c) => (
+							<SelectItem key={c.id} value={c.id}>
+								{c.name}
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -182,6 +252,29 @@ export default function LiveTVPage() {
                 />
               </div>
 
+              {(activeChannel.category || activeChannel.country) && (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-foreground">More like this</h3>
+                  </div>
+                  {isLoadingRelated ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">Loading...</p>
+                    </div>
+                  ) : relatedChannels.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {relatedChannels.map((ch) => (
+                        <ChannelCard key={ch.id} channel={ch} onWatch={setActiveChannel} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">No similar channels found.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="mt-4 flex items-center justify-between">
                 <p className="text-muted-foreground">
                   Category: <span className="text-foreground">{activeChannel.category}</span>
@@ -194,7 +287,7 @@ export default function LiveTVPage() {
           </div>
         )}
 
-        {/* Channels by Category */}
+			{/* Channels by Category */}
 			{isLoading ? (
 				<div className="text-center py-16">
 					<p className="text-muted-foreground">Loading...</p>
@@ -216,6 +309,19 @@ export default function LiveTVPage() {
 						</div>
 					</section>
 				))
+			)}
+
+			{!isLoading && normalized.length > 0 && (
+				<div className="flex justify-center mt-8">
+					<Button
+						variant="secondary"
+						onClick={loadMore}
+						disabled={!canLoadMore || isLoadingMore}
+						className="min-w-40"
+					>
+						{isLoadingMore ? "Loading..." : canLoadMore ? "Load more" : "No more channels"}
+					</Button>
+				</div>
 			)}
       </div>
 

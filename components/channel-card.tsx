@@ -15,6 +15,11 @@ interface ChannelCardProps {
 export function ChannelCard({ channel, onWatch }: ChannelCardProps) {
   const [isHovered, setIsHovered] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [imgSrc, setImgSrc] = useState<string>(
+    channel.isLogoAvailable === false
+      ? "https://static.thenounproject.com/png/4180653-512.png"
+      : channel.logo || "/placeholder.svg?height=180&width=320&query=tv channel logo",
+  )
 
   return (
     <div
@@ -42,7 +47,7 @@ export function ChannelCard({ channel, onWatch }: ChannelCardProps) {
       <div className="aspect-video relative bg-muted">
         {!imageLoaded && <div className="absolute inset-0 bg-muted animate-pulse" />}
         <Image
-          src={channel.logo || "/placeholder.svg?height=180&width=320&query=tv channel logo"}
+          src={imgSrc}
           alt={channel.name}
           fill
           className={cn(
@@ -51,6 +56,10 @@ export function ChannelCard({ channel, onWatch }: ChannelCardProps) {
             imageLoaded ? "opacity-100" : "opacity-0",
           )}
           onLoad={() => setImageLoaded(true)}
+          onError={() => {
+            setImageLoaded(true)
+            setImgSrc("https://static.thenounproject.com/png/4180653-512.png")
+          }}
         />
 
         {/* Hover Overlay */}

@@ -126,12 +126,26 @@ type PBGenreRecord = {
   name?: string
 }
 
+type PBCountryRecord = {
+  id: string
+  name?: string
+  code?: string
+}
+
+type PBCategoryRecord = {
+  id: string
+  name?: string
+}
+
 type PBChannelRecord = {
   id: string
   title?: string
   logo_url?: string
   quality?: string
   stream_url?: string
+  is_logo_available?: boolean
+  country?: string
+  category?: string[]
   expand?: {
     category?: Array<{ name?: string }>
     country?: { name?: string; code?: string }
@@ -591,6 +605,52 @@ export async function listGenres(): Promise<Array<{ id: string; name: string }>>
   return out
 }
 
+export async function listCountries(): Promise<Array<{ id: string; name: string }>> {
+  const resp = await pbGetJSON<PBListResp<PBCountryRecord>>(pbApiBasePath() + "/countries", {
+    page: 1,
+    perPage: 500,
+    sort: "name",
+    fields: "id,name",
+  })
+
+  const out: Array<{ id: string; name: string }> = []
+  const seen = new Set<string>()
+  for (const c of resp.items || []) {
+    const id = (c.id || "").trim()
+    const name = (c.name || "").trim()
+    if (!id || !name) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ id, name })
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name))
+  return out
+}
+
+export async function listCategories(): Promise<Array<{ id: string; name: string }>> {
+  const resp = await pbGetJSON<PBListResp<PBCategoryRecord>>(pbApiBasePath() + "/categories", {
+    page: 1,
+    perPage: 500,
+    sort: "name",
+    fields: "id,name",
+  })
+
+  const out: Array<{ id: string; name: string }> = []
+  const seen = new Set<string>()
+  for (const c of resp.items || []) {
+    const id = (c.id || "").trim()
+    const name = (c.name || "").trim()
+    if (!id || !name) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ id, name })
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name))
+  return out
+}
+
 export async function listChannels(opts?: {
   page?: number
   perPage?: number
@@ -600,13 +660,15 @@ export async function listChannels(opts?: {
   const page = opts?.page ?? 1
   const perPage = opts?.perPage ?? 200
 
+  const FALLBACK_LOGO = "https://static.thenounproject.com/png/4180653-512.png"
+
   const resp = await pbGetJSON<PBListResp<PBChannelRecord>>(pbApiBasePath() + "/channels", {
     page,
     perPage,
     filter: opts?.filter,
     sort: opts?.sort || "title",
     expand: "category,country",
-    fields: "id,title,logo_url,quality,stream_url,expand.category,expand.country",
+    fields: "id,title,logo_url,is_logo_available,quality,stream_url,country,category,expand.category,expand.country",
   })
 
   const items: Channel[] = []
@@ -622,15 +684,27 @@ export async function listChannels(opts?: {
     const category = categories[0] || undefined
     const country = typeof r.expand?.country?.name === "string" ? r.expand.country.name.trim() : undefined
 
+    const isLogoAvailable = typeof r.is_logo_available === "boolean" ? r.is_logo_available : undefined
+    const logoUrl = (r.logo_url || "").trim()
+    const logo = isLogoAvailable === false || !logoUrl ? FALLBACK_LOGO : logoUrl
+
+    const categoryIds = Array.isArray(r.category)
+      ? r.category.map((id) => (typeof id === "string" ? id.trim() : "")).filter(Boolean)
+      : undefined
+    const countryId = typeof r.country === "string" && r.country.trim() ? r.country.trim() : undefined
+
     items.push({
       id: r.id,
       name,
-      logo: (r.logo_url || "").trim() || undefined,
+      logo,
+      isLogoAvailable,
       quality: (r.quality || "").trim() || undefined,
       url,
       category: category || undefined,
       categories: categories.length > 0 ? categories : undefined,
       country: country || undefined,
+      categoryIds,
+      countryId,
     })
   }
 
