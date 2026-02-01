@@ -30,6 +30,15 @@ export default function ProfilePage() {
 	const [isAvatarPreviewOpen, setIsAvatarPreviewOpen] = useState(false)
 	const avatarInputRef = useRef<HTMLInputElement>(null)
 
+	useEffect(() => {
+		if (!isAvatarPreviewOpen) return
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape") setIsAvatarPreviewOpen(false)
+		}
+		window.addEventListener("keydown", onKeyDown)
+		return () => window.removeEventListener("keydown", onKeyDown)
+	}, [isAvatarPreviewOpen])
+
   const name = useMemo(() => {
     const first = (user?.firstName || "").trim()
     const last = (user?.lastName || "").trim()
@@ -114,15 +123,6 @@ export default function ProfilePage() {
 		if (!file) return
 		await uploadAvatar(file)
 	}
-
-	useEffect(() => {
-		if (!isAvatarPreviewOpen) return
-		const onKeyDown = (e: KeyboardEvent) => {
-			if (e.key === "Escape") setIsAvatarPreviewOpen(false)
-		}
-		window.addEventListener("keydown", onKeyDown)
-		return () => window.removeEventListener("keydown", onKeyDown)
-	}, [isAvatarPreviewOpen])
 
   return (
     <main className="min-h-screen bg-background">

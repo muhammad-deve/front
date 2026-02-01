@@ -14,64 +14,70 @@ export async function listFeaturedHero(opts?: {
 }): Promise<Content[]> {
   const perPage = opts?.perPage ?? 5
 
-  const featuredResp = await pbGetJSON<PBListResp<PBFeaturedRecord>>(pbApiBasePath() + "/featured", {
-    page: 1,
-    perPage,
-    sort: opts?.sort,
-    fields: "id,movie_id,background_url,created",
-  })
+  try {
+    const featuredResp = await pbGetJSON<PBListResp<PBFeaturedRecord>>(pbApiBasePath() + "/featured", {
+      page: 1,
+      perPage,
+      sort: opts?.sort,
+      fields: "id,movie_id,background_url,created",
+    })
 
-  const featured = featuredResp.items || []
-  const movieIds = featured.map((f) => (f.movie_id || "").trim()).filter(Boolean)
-  if (movieIds.length === 0) return []
+    const featured = featuredResp.items || []
+    const movieIds = featured.map((f) => (f.movie_id || "").trim()).filter(Boolean)
+    if (movieIds.length === 0) return []
 
-  const idFilter = buildOrEqualsFilter("id", movieIds)
-  if (!idFilter) return []
+    const idFilter = buildOrEqualsFilter("id", movieIds)
+    if (!idFilter) return []
 
-  const { items: movies } = await listContent({
-    page: 1,
-    perPage: 200,
-    filter: idFilter,
-  })
+    const { items: movies } = await listContent({
+      page: 1,
+      perPage: 200,
+      filter: idFilter,
+    })
 
-  const byId = new Map(movies.map((m) => [m.imdb_id, m] as const))
-  const byRecordId = new Map<string, Content>()
+    const byId = new Map(movies.map((m) => [m.imdb_id, m] as const))
+    const byRecordId = new Map<string, Content>()
 
-  // listContent() returns Content keyed by imdb_id, but we need to map by PB record id.
-  // We re-fetch minimal mapping from PB for the selected record ids.
-  const resp = await pbGetJSON<PBListResp<PBMovieRecord>>(pbApiBasePath() + "/content", {
-    page: 1,
-    perPage: 200,
-    filter: idFilter,
-    fields: "id,imdb_id",
-  })
+    // listContent() returns Content keyed by imdb_id, but we need to map by PB record id.
+    // We re-fetch minimal mapping from PB for the selected record ids.
+    const resp = await pbGetJSON<PBListResp<PBMovieRecord>>(pbApiBasePath() + "/content", {
+      page: 1,
+      perPage: 200,
+      filter: idFilter,
+      fields: "id,imdb_id",
+    })
 
-  for (const r of resp.items || []) {
-    const imdb = (r.imdb_id || "").trim()
-    if (!imdb) continue
-    const c = byId.get(imdb)
-    if (c) byRecordId.set(r.id, c)
+    for (const r of resp.items || []) {
+      const imdb = (r.imdb_id || "").trim()
+      if (!imdb) continue
+      const c = byId.get(imdb)
+      if (c) byRecordId.set(r.id, c)
+    }
+
+    const out: Content[] = []
+    for (const f of featured) {
+      const mid = (f.movie_id || "").trim()
+      if (!mid) continue
+      const c = byRecordId.get(mid)
+      if (!c) continue
+
+      const bg = (f.background_url || "").trim()
+      out.push(
+        bg
+          ? {
+            ...c,
+            backdropImage: { url: bg, width: 0, height: 0 },
+          }
+          : c,
+      )
+    }
+
+    return out
+  } catch (error) {
+    // If the featured collection doesn't exist or is empty, gracefully return empty array
+    console.warn("Failed to fetch featured content:", error)
+    return []
   }
-
-  const out: Content[] = []
-  for (const f of featured) {
-    const mid = (f.movie_id || "").trim()
-    if (!mid) continue
-    const c = byRecordId.get(mid)
-    if (!c) continue
-
-    const bg = (f.background_url || "").trim()
-    out.push(
-      bg
-        ? {
-          ...c,
-          backdropImage: { url: bg, width: 0, height: 0 },
-        }
-        : c,
-    )
-  }
-
-  return out
 }
 
 type PBMovieExpand = {
@@ -503,20 +509,31 @@ export async function listContent(opts?: {
   const page = opts?.page ?? 1
   const perPage = opts?.perPage ?? 24
 
-  const resp = await pbGetJSON<PBListResp<PBMovieRecord>>(pbApiBasePath() + "/content", {
-    page,
-    perPage,
-    filter: opts?.filter,
-    sort: opts?.sort,
-    expand: "content_id,genre_id,country_id",
-  })
+  try {
+    const resp = await pbGetJSON<PBListResp<PBMovieRecord>>(pbApiBasePath() + "/content", {
+      page,
+      perPage,
+      filter: opts?.filter,
+      sort: opts?.sort,
+      expand: "content_id,genre_id,country_id",
+    })
 
-  return {
-    items: resp.items.map(movieRecordToContent).filter((c) => c.imdb_id),
-    totalItems: resp.totalItems,
-    totalPages: resp.totalPages,
-    page: resp.page,
-    perPage: resp.perPage,
+    return {
+      items: resp.items.map(movieRecordToContent).filter((c) => c.imdb_id),
+      totalItems: resp.totalItems,
+      totalPages: resp.totalPages,
+      page: resp.page,
+      perPage: resp.perPage,
+    }
+  } catch (error) {
+    console.warn("Failed to fetch content list:", error)
+    return {
+      items: [],
+      totalItems: 0,
+      totalPages: 0,
+      page,
+      perPage,
+    }
   }
 }
 
@@ -586,69 +603,84 @@ export async function listContentByPersonCredits(credits: {
 }
 
 export async function listGenres(): Promise<Array<{ id: string; name: string }>> {
-  const resp = await pbGetJSON<PBListResp<PBGenreRecord>>(pbApiBasePath() + "/genres", {
-    page: 1,
-    perPage: 200,
-    sort: "name",
-  })
+  try {
+    const resp = await pbGetJSON<PBListResp<PBGenreRecord>>(pbApiBasePath() + "/genres", {
+      page: 1,
+      perPage: 200,
+      sort: "name",
+    })
 
-  const out: Array<{ id: string; name: string }> = []
-  const seen = new Set<string>()
-  for (const g of resp.items) {
-    const name = toDisplayGenreName((g.name || "").trim())
-    if (!g.id || !name) continue
-    const key = name.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push({ id: g.id, name })
+    const out: Array<{ id: string; name: string }> = []
+    const seen = new Set<string>()
+    for (const g of resp.items) {
+      const name = toDisplayGenreName((g.name || "").trim())
+      if (!g.id || !name) continue
+      const key = name.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({ id: g.id, name })
+    }
+    return out
+  } catch (error) {
+    console.warn("Failed to fetch genres:", error)
+    return []
   }
-  return out
 }
 
 export async function listCountries(): Promise<Array<{ id: string; name: string }>> {
-  const resp = await pbGetJSON<PBListResp<PBCountryRecord>>(pbApiBasePath() + "/countries", {
-    page: 1,
-    perPage: 500,
-    sort: "name",
-    fields: "id,name",
-  })
+  try {
+    const resp = await pbGetJSON<PBListResp<PBCountryRecord>>(pbApiBasePath() + "/countries", {
+      page: 1,
+      perPage: 500,
+      sort: "name",
+      fields: "id,name",
+    })
 
-  const out: Array<{ id: string; name: string }> = []
-  const seen = new Set<string>()
-  for (const c of resp.items || []) {
-    const id = (c.id || "").trim()
-    const name = (c.name || "").trim()
-    if (!id || !name) continue
-    const key = name.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push({ id, name })
+    const out: Array<{ id: string; name: string }> = []
+    const seen = new Set<string>()
+    for (const c of resp.items || []) {
+      const id = (c.id || "").trim()
+      const name = (c.name || "").trim()
+      if (!id || !name) continue
+      const key = name.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({ id, name })
+    }
+    out.sort((a, b) => a.name.localeCompare(b.name))
+    return out
+  } catch (error) {
+    console.warn("Failed to fetch countries:", error)
+    return []
   }
-  out.sort((a, b) => a.name.localeCompare(b.name))
-  return out
 }
 
 export async function listCategories(): Promise<Array<{ id: string; name: string }>> {
-  const resp = await pbGetJSON<PBListResp<PBCategoryRecord>>(pbApiBasePath() + "/categories", {
-    page: 1,
-    perPage: 500,
-    sort: "name",
-    fields: "id,name",
-  })
+  try {
+    const resp = await pbGetJSON<PBListResp<PBCategoryRecord>>(pbApiBasePath() + "/categories", {
+      page: 1,
+      perPage: 500,
+      sort: "name",
+      fields: "id,name",
+    })
 
-  const out: Array<{ id: string; name: string }> = []
-  const seen = new Set<string>()
-  for (const c of resp.items || []) {
-    const id = (c.id || "").trim()
-    const name = (c.name || "").trim()
-    if (!id || !name) continue
-    const key = name.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push({ id, name })
+    const out: Array<{ id: string; name: string }> = []
+    const seen = new Set<string>()
+    for (const c of resp.items || []) {
+      const id = (c.id || "").trim()
+      const name = (c.name || "").trim()
+      if (!id || !name) continue
+      const key = name.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({ id, name })
+    }
+    out.sort((a, b) => a.name.localeCompare(b.name))
+    return out
+  } catch (error) {
+    console.warn("Failed to fetch categories:", error)
+    return []
   }
-  out.sort((a, b) => a.name.localeCompare(b.name))
-  return out
 }
 
 export async function listChannels(opts?: {
@@ -662,78 +694,89 @@ export async function listChannels(opts?: {
 
   const FALLBACK_LOGO = "https://static.thenounproject.com/png/4180653-512.png"
 
-  const resp = await pbGetJSON<PBListResp<PBChannelRecord>>(pbApiBasePath() + "/channels", {
-    page,
-    perPage,
-    filter: opts?.filter,
-    sort: opts?.sort || "title",
-    expand: "category,country",
-  })
+  try {
+    const resp = await pbGetJSON<PBListResp<PBChannelRecord>>(pbApiBasePath() + "/channels", {
+      page,
+      perPage,
+      filter: opts?.filter,
+      sort: opts?.sort || "title",
+      expand: "category,country",
+    })
 
-  const extractCountryLanguage = (country: unknown): string | undefined => {
-    if (!country || typeof country !== "object") return undefined
-    const c = country as Record<string, unknown>
-    const pick = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined)
+    const extractCountryLanguage = (country: unknown): string | undefined => {
+      if (!country || typeof country !== "object") return undefined
+      const c = country as Record<string, unknown>
+      const pick = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined)
 
-    const direct = pick(c.language) || pick(c.languages) || pick(c.lang) || pick(c.langs)
-    if (direct) return direct
+      const direct = pick(c.language) || pick(c.languages) || pick(c.lang) || pick(c.langs)
+      if (direct) return direct
 
-    const fromArray = (v: unknown): string | undefined => {
-      if (!Array.isArray(v)) return undefined
-      const parts = v
-        .map((x) => (typeof x === "string" ? x.trim() : ""))
-        .filter(Boolean)
-      return parts.length > 0 ? parts.join(", ") : undefined
+      const fromArray = (v: unknown): string | undefined => {
+        if (!Array.isArray(v)) return undefined
+        const parts = v
+          .map((x) => (typeof x === "string" ? x.trim() : ""))
+          .filter(Boolean)
+        return parts.length > 0 ? parts.join(", ") : undefined
+      }
+
+      return fromArray(c.languages) || fromArray(c.language) || fromArray(c.langs)
     }
 
-    return fromArray(c.languages) || fromArray(c.language) || fromArray(c.langs)
-  }
+    const items: Channel[] = []
+    for (const r of resp.items) {
+      const name = (r.title || "").trim()
+      const url = (r.stream_url || "").trim()
+      if (!name || !url) continue
 
-  const items: Channel[] = []
-  for (const r of resp.items) {
-    const name = (r.title || "").trim()
-    const url = (r.stream_url || "").trim()
-    if (!name || !url) continue
+      const categories = (r.expand?.category || [])
+        .map((c) => (typeof c?.name === "string" ? c.name.trim() : ""))
+        .filter(Boolean)
 
-    const categories = (r.expand?.category || [])
-      .map((c) => (typeof c?.name === "string" ? c.name.trim() : ""))
-      .filter(Boolean)
+      const category = categories[0] || undefined
+      const country = typeof r.expand?.country?.name === "string" ? r.expand.country.name.trim() : undefined
+      const language = extractCountryLanguage(r.expand?.country)
 
-    const category = categories[0] || undefined
-    const country = typeof r.expand?.country?.name === "string" ? r.expand.country.name.trim() : undefined
-    const language = extractCountryLanguage(r.expand?.country)
+      const isLogoAvailable = typeof r.is_logo_available === "boolean" ? r.is_logo_available : undefined
+      const logoUrl = (r.logo_url || "").trim()
+      const logo = isLogoAvailable === false || !logoUrl ? FALLBACK_LOGO : logoUrl
 
-    const isLogoAvailable = typeof r.is_logo_available === "boolean" ? r.is_logo_available : undefined
-    const logoUrl = (r.logo_url || "").trim()
-    const logo = isLogoAvailable === false || !logoUrl ? FALLBACK_LOGO : logoUrl
+      const categoryIds = Array.isArray(r.category)
+        ? r.category.map((id) => (typeof id === "string" ? id.trim() : "")).filter(Boolean)
+        : undefined
+      const countryId = typeof r.country === "string" && r.country.trim() ? r.country.trim() : undefined
 
-    const categoryIds = Array.isArray(r.category)
-      ? r.category.map((id) => (typeof id === "string" ? id.trim() : "")).filter(Boolean)
-      : undefined
-    const countryId = typeof r.country === "string" && r.country.trim() ? r.country.trim() : undefined
+      items.push({
+        id: r.id,
+        name,
+        logo,
+        isLogoAvailable,
+        quality: (r.quality || "").trim() || undefined,
+        url,
+        category: category || undefined,
+        categories: categories.length > 0 ? categories : undefined,
+        country: country || undefined,
+        categoryIds,
+        countryId,
+        language,
+      })
+    }
 
-    items.push({
-      id: r.id,
-      name,
-      logo,
-      isLogoAvailable,
-      quality: (r.quality || "").trim() || undefined,
-      url,
-      category: category || undefined,
-      categories: categories.length > 0 ? categories : undefined,
-      country: country || undefined,
-      categoryIds,
-      countryId,
-      language,
-    })
-  }
-
-  return {
-    items,
-    totalItems: resp.totalItems,
-    totalPages: resp.totalPages,
-    page: resp.page,
-    perPage: resp.perPage,
+    return {
+      items,
+      totalItems: resp.totalItems,
+      totalPages: resp.totalPages,
+      page: resp.page,
+      perPage: resp.perPage,
+    }
+  } catch (error) {
+    console.warn("Failed to fetch channels:", error)
+    return {
+      items: [],
+      totalItems: 0,
+      totalPages: 0,
+      page,
+      perPage,
+    }
   }
 }
 
