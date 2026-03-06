@@ -50,25 +50,23 @@ export default async function MoviePage({ params }: MoviePageProps) {
 
         {/* Content */}
         <div className="relative mx-auto w-full max-w-7xl 2xl:max-w-[1600px] px-4 pt-24 lg:pt-32">
-          <div className="grid lg:grid-cols-[300px_1fr] gap-8">
+          <div className="grid lg:grid-cols-[300px_1fr] gap-8 items-start">
             {/* Poster */}
-            <div className="hidden lg:block">
-              <div className="sticky top-24">
-                <PosterLightbox
+            <div className="hidden lg:block self-start sticky top-24">
+              <PosterLightbox
+                src={movie.primaryImage?.url || "/placeholder.svg?height=600&width=400&query=movie poster"}
+                alt={movie.title}
+                className="aspect-[2/3] rounded-xl overflow-hidden shadow-2xl border border-border"
+              >
+                <Image
                   src={movie.primaryImage?.url || "/placeholder.svg?height=600&width=400&query=movie poster"}
                   alt={movie.title}
-                  className="aspect-[2/3] rounded-xl overflow-hidden shadow-2xl border border-border"
-                >
-                  <Image
-                    src={movie.primaryImage?.url || "/placeholder.svg?height=600&width=400&query=movie poster"}
-                    alt={movie.title}
-                    width={300}
-                    height={450}
-                    className="w-full h-full object-cover"
-                  />
-                </PosterLightbox>
-                <WatchlistButton contentId={movie.imdb_id} className="w-full mt-4" />
-              </div>
+                  width={300}
+                  height={450}
+                  className="w-full h-full object-cover"
+                />
+              </PosterLightbox>
+              <WatchlistButton contentId={movie.imdb_id} className="w-full mt-4" />
             </div>
 
             {/* Info */}
