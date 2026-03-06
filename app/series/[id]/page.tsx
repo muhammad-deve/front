@@ -26,7 +26,7 @@ export default async function SeriesPage({ params }: SeriesPageProps) {
   }
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-screen bg-background overflow-x-hidden">
       <Header />
 
       {/* Hero Background */}
@@ -49,8 +49,8 @@ export default async function SeriesPage({ params }: SeriesPageProps) {
         </div>
 
         {/* Content */}
-        <div className="relative mx-auto w-full max-w-7xl 2xl:max-w-[1600px] px-4 pt-24 lg:pt-32">
-          <div className="grid lg:grid-cols-[300px_1fr] gap-8">
+        <div className="relative mx-auto w-full max-w-7xl 2xl:max-w-[1600px] px-4 pt-24 lg:pt-32 overflow-hidden">
+          <div className="grid lg:grid-cols-[300px_1fr] gap-8 min-w-0">
             {/* Poster */}
             <div className="hidden lg:block">
               <div className="sticky top-24">
@@ -72,7 +72,7 @@ export default async function SeriesPage({ params }: SeriesPageProps) {
             </div>
 
             {/* Info */}
-            <div className="space-y-6">
+            <div className="space-y-6 min-w-0">
               {/* Title & Meta */}
               <div>
                 <div className="flex items-center gap-3 mb-3">
@@ -162,7 +162,7 @@ export default async function SeriesPage({ params }: SeriesPageProps) {
               {series.primaryVideo && Object.values(series.primaryVideo).some(Boolean) && (
                 <div className="pt-4">
                   <h2 className="text-xl font-bold text-foreground mb-4">Watch Now</h2>
-                  <div className="max-w-5xl mx-auto w-full">
+                  <div className="w-full min-w-0">
                     <SeriesWatchSection
                       imdbId={series.imdb_id}
                       tmdbId={series.tmdb_id}

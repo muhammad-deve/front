@@ -81,12 +81,11 @@ export function VideoPlayer({ sources, title, excludeServers }: VideoPlayerProps
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0 w-full overflow-hidden">
       {/* Controls */}
-      <div className="grid grid-cols-3 items-center gap-4">
-        <div />
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         {/* Server Switcher */}
-        <div className="justify-self-center">
+        <div className="flex-1 flex justify-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="secondary" className="gap-2">
@@ -117,7 +116,7 @@ export function VideoPlayer({ sources, title, excludeServers }: VideoPlayerProps
           variant="ghost"
           size="icon"
           onClick={handleFullscreen}
-          className="justify-self-end text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground flex-shrink-0"
         >
           <Maximize className="w-5 h-5" />
         </Button>

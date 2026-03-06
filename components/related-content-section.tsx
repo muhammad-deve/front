@@ -287,7 +287,7 @@ export function RelatedContentSection({
   }
 
   return (
-    <section className="mt-16">
+    <section className="mt-16 overflow-hidden">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl lg:text-2xl font-bold text-foreground">{title}</h2>
         <div className="flex items-center gap-2">

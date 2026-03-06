@@ -247,8 +247,8 @@ export function SeriesWatchSection(props: {
   const activeEpisode = episodes.find((x) => x.episodeNumber === episode)
 
   return (
-    <div className="space-y-4">
-      <Card className="border-border bg-card/50 backdrop-blur-sm p-4 lg:p-5">
+    <div className="space-y-4 min-w-0 w-full overflow-hidden">
+      <Card className="border-border bg-card/50 backdrop-blur-sm p-4 lg:p-5 overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
           <div className="flex-1 min-w-0">
             <div className="text-sm text-muted-foreground">Now Watching</div>
@@ -308,7 +308,7 @@ export function SeriesWatchSection(props: {
         </div>
 
         {episodes.length > 0 && (
-          <div className="mt-4">
+          <div className="mt-4 min-w-0 w-full">
             <div className="flex gap-3 pb-3 overflow-x-auto scrollbar-hide">
               {episodes.map((ep) => {
                 const selected = ep.episodeNumber === episode
@@ -318,11 +318,11 @@ export function SeriesWatchSection(props: {
                     type="button"
                     onClick={() => setEpisode(ep.episodeNumber)}
                     className={cn(
-                      "group relative flex-shrink-0 w-[220px] rounded-xl overflow-hidden border bg-background/40 hover:bg-background/60 transition-colors",
+                      "group relative flex-shrink-0 w-[170px] sm:w-[220px] rounded-xl overflow-hidden border bg-background/40 hover:bg-background/60 transition-colors",
                       selected ? "border-primary ring-2 ring-primary/30" : "border-border",
                     )}
                   >
-                    <div className="relative h-[124px] bg-muted">
+                    <div className="relative h-[100px] sm:h-[124px] bg-muted">
                       {ep.img ? (
                         <Image
                           src={ep.img}
