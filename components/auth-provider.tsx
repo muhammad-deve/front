@@ -7,7 +7,7 @@ interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   signIn: (email: string, password: string) => Promise<boolean>
-  requestOtp: (email: string, purpose: "signin" | "signup") => Promise<boolean>
+  requestOtp: (email: string, purpose: "signin" | "signup" | "reset") => Promise<boolean>
   verifyOtp: (data: VerifyOtpData) => Promise<boolean>
   refreshUser: () => Promise<void>
   signOut: () => Promise<void>
@@ -18,7 +18,7 @@ interface AuthContextType {
 
 interface VerifyOtpData {
   email: string
-  purpose: "signin" | "signup"
+  purpose: "signin" | "signup" | "reset"
   otp: string
   firstName?: string
   lastName?: string
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false
   }, [])
 
-  const requestOtp = useCallback(async (email: string, purpose: "signin" | "signup"): Promise<boolean> => {
+  const requestOtp = useCallback(async (email: string, purpose: "signin" | "signup" | "reset"): Promise<boolean> => {
     const res = await fetch("/api/auth/request-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },

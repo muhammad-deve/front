@@ -39,8 +39,24 @@ async function pbUserExists(email: string): Promise<boolean> {
   return typeof json?.items?.[0]?.id === "string"
 }
 
-function otpEmailHtml(opts: { otp: string; toEmail: string }): string {
-  const { otp, toEmail } = opts
+type OtpMailPurpose = "signup" | "signin" | "reset"
+
+function purposeCopy(purpose: OtpMailPurpose): { subtitle: string; intro: string } {
+  if (purpose === "reset") {
+    return {
+      subtitle: "Secure password reset verification",
+      intro: "We received a password reset request for",
+    }
+  }
+  return {
+    subtitle: "Secure sign-in verification",
+    intro: "We received a request to sign in / sign up for",
+  }
+}
+
+function otpEmailHtml(opts: { otp: string; toEmail: string; purpose: OtpMailPurpose }): string {
+  const { otp, toEmail, purpose } = opts
+  const copy = purposeCopy(purpose)
   const digits = otp.split("")
 
   const otpBoxes = digits
@@ -75,7 +91,7 @@ function otpEmailHtml(opts: { otp: string; toEmail: string }): string {
               <td style="width:44px;height:44px;border-radius:12px;background:#f59e0b;text-align:center;vertical-align:middle;color:#0b0c10;font-weight:900;font-size:16px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">SV</td>
               <td style="padding-left:12px;vertical-align:middle;">
                 <div style="color:#ffffff;font-size:18px;font-weight:800;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">StreamVault</div>
-                <div style="color:#a7b0c0;font-size:12px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">Secure sign-in verification</div>
+                <div style="color:#a7b0c0;font-size:12px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">${copy.subtitle}</div>
               </td>
             </tr>
           </table>
@@ -86,7 +102,7 @@ function otpEmailHtml(opts: { otp: string; toEmail: string }): string {
         <td style="background:#0f1117;border:1px solid #1f2430;border-radius:18px;padding:22px;">
           <div style="color:#ffffff;font-size:20px;font-weight:900;margin-bottom:6px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">Your verification code</div>
           <div style="color:#a7b0c0;font-size:13px;line-height:1.5;margin-bottom:18px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">
-            We received a request to sign in / sign up for <span style="color:#ffffff;font-weight:700;">${toEmail}</span>.
+            ${copy.intro} <span style="color:#ffffff;font-weight:700;">${toEmail}</span>.
             Enter this 5-digit code to continue. This code expires in 10 minutes.
           </div>
 
@@ -125,7 +141,7 @@ export async function POST(req: Request) {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return Response.json({ error: "Invalid email" }, { status: 400 })
     }
-    if (purpose !== "signup" && purpose !== "signin") {
+    if (purpose !== "signup" && purpose !== "signin" && purpose !== "reset") {
       return Response.json({ error: "Invalid purpose" }, { status: 400 })
     }
 
@@ -134,6 +150,9 @@ export async function POST(req: Request) {
       return Response.json({ error: "Email already registered" }, { status: 400 })
     }
     if (purpose === "signin" && !exists) {
+      return Response.json({ error: "Account not found" }, { status: 400 })
+    }
+    if (purpose === "reset" && !exists) {
       return Response.json({ error: "Account not found" }, { status: 400 })
     }
 
@@ -157,8 +176,8 @@ export async function POST(req: Request) {
     await transporter.sendMail({
       from,
       to: email,
-      subject: `Your StreamVault code: ${otp}`,
-      html: otpEmailHtml({ otp, toEmail: email }),
+      subject: purpose === "reset" ? `Your StreamVault password reset code: ${otp}` : `Your StreamVault code: ${otp}`,
+      html: otpEmailHtml({ otp, toEmail: email, purpose }),
     })
 
     return Response.json({ ok: true })

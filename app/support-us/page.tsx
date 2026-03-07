@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Heart, Copy, Check, Github, MessageCircle, Share2, Bug, Send, X } from "lucide-react"
 
 const BTC_ADDRESS = "bc1ql8ytce30meu7d3p439cvw533kv323c4c9r8d33"
+const BITCOIN_URI = `bitcoin:${BTC_ADDRESS}`
 
 // QR code generated via public API — styled with gold-on-dark colors
-const QR_URL = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=bitcoin:${BTC_ADDRESS}&bgcolor=141414&color=ffb800&margin=16&qzone=2`
+const QR_URL = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&format=png&margin=8&data=${encodeURIComponent(BITCOIN_URI)}`
 
 function TelegramIcon({ className }: { className?: string }) {
     return (
@@ -136,13 +137,13 @@ export default function SupportUsPage() {
 
                             {/* Real QR Code — branded gold on dark */}
                             <div className="flex justify-center mb-8">
-                                <div className="p-3 bg-[#141414] rounded-2xl border-2 border-primary/30 shadow-lg shadow-primary/10">
+                                <div className="p-3 bg-white rounded-2xl border-2 border-primary/30 shadow-lg shadow-primary/10">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                         src={QR_URL}
                                         alt="Bitcoin QR Code"
-                                        width={220}
-                                        height={220}
+                                        width={260}
+                                        height={260}
                                         className="rounded-xl block"
                                         style={{ imageRendering: "pixelated" }}
                                     />
@@ -183,6 +184,13 @@ export default function SupportUsPage() {
                                 ) : (
                                     <><Copy className="w-5 h-5 mr-2" />Copy Bitcoin Address</>
                                 )}
+                            </Button>
+                            <Button
+                                asChild
+                                variant="outline"
+                                className="w-full mt-3 h-12 text-base font-semibold rounded-xl"
+                            >
+                                <a href={BITCOIN_URI}>Open in Bitcoin Wallet</a>
                             </Button>
                         </div>
                     </div>

@@ -84,9 +84,14 @@ export function SignInForm() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-foreground">
-                Password
-              </Label>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="password" className="text-foreground">
+                  Password
+                </Label>
+                <Link href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <Input
                   id="password"

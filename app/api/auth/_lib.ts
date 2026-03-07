@@ -5,7 +5,7 @@ import { getPocketBaseAuthorizationHeaderValue, pbBaseUrl } from "../pb/_auth"
 const OTP_TTL_MS = 10 * 60 * 1000
 const OTP_MAX_ATTEMPTS = 8
 
-type OtpPurpose = "signin" | "signup"
+export type OtpPurpose = "signin" | "signup" | "reset"
 
 type OtpEntry = {
   codeHash: string

@@ -4,9 +4,11 @@ import { useState } from "react"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
-import { Heart, Copy, Check, QrCode } from "lucide-react"
+import { Heart, Copy, Check } from "lucide-react"
 
-const BTC_ADDRESS = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
+const BTC_ADDRESS = "bc1ql8ytce30meu7d3p439cvw533kv323c4c9r8d33"
+const BITCOIN_URI = `bitcoin:${BTC_ADDRESS}`
+const QR_URL = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&format=png&margin=8&data=${encodeURIComponent(BITCOIN_URI)}`
 
 export default function DonatePage() {
   const [copied, setCopied] = useState(false)
@@ -42,10 +44,18 @@ export default function DonatePage() {
           <div className="bg-card border border-border rounded-2xl p-8 shadow-xl">
             <h2 className="text-xl font-semibold text-foreground mb-6 text-center">Donate with Bitcoin</h2>
 
-            {/* QR Code Placeholder */}
+            {/* Real QR Code */}
             <div className="flex justify-center mb-6">
-              <div className="w-48 h-48 bg-secondary rounded-xl flex items-center justify-center border border-border">
-                <QrCode className="w-24 h-24 text-muted-foreground" />
+              <div className="p-3 bg-white rounded-xl border border-border">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={QR_URL}
+                  alt="Bitcoin QR Code"
+                  width={230}
+                  height={230}
+                  className="rounded-lg block"
+                  style={{ imageRendering: "pixelated" }}
+                />
               </div>
             </div>
 
@@ -79,6 +89,10 @@ export default function DonatePage() {
                   Copy Address
                 </>
               )}
+            </Button>
+
+            <Button asChild variant="outline" className="w-full mt-3">
+              <a href={BITCOIN_URI}>Open in Bitcoin Wallet</a>
             </Button>
           </div>
 
