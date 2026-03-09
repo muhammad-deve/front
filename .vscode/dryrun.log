@@ -1,3 +1,6 @@
 make.exe --dry-run --always-make --keep-going --print-directory
-Access is denied.
-
+make: Entering directory 'c:/Users/user/Desktop/Movies/front'
+if [ ! -d node_modules ]; then npm install; fi
+npm run dev
+make: Leaving directory 'c:/Users/user/Desktop/Movies/front'
+ 
