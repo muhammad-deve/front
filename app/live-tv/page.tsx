@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ChannelCard } from "@/components/channel-card"
@@ -19,7 +19,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select"
 
-export default function LiveTVPage() {
+function LiveTVContent() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 	const [channels, setChannels] = useState<Channel[]>([])
@@ -354,4 +354,12 @@ export default function LiveTVPage() {
       <Footer />
     </main>
   )
+}
+
+export default function LiveTVPage() {
+	return (
+		<Suspense fallback={<main className="min-h-screen bg-background" />}>
+			<LiveTVContent />
+		</Suspense>
+	)
 }

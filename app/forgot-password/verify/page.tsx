@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Header } from "@/components/header"
@@ -13,7 +13,7 @@ function isEmailValid(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-export default function ForgotPasswordVerifyPage() {
+function ForgotPasswordVerifyContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const email = (searchParams.get("email") || "").trim().toLowerCase()
@@ -190,5 +190,13 @@ export default function ForgotPasswordVerifyPage() {
         </div>
       </div>
     </main>
+  )
+}
+
+export default function ForgotPasswordVerifyPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-background" />}>
+      <ForgotPasswordVerifyContent />
+    </Suspense>
   )
 }

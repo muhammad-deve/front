@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Header } from "@/components/header"
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { Play, Loader2, Check, Eye, EyeOff } from "lucide-react"
 
-export default function ForgotPasswordResetPage() {
+function ForgotPasswordResetContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const email = (searchParams.get("email") || "").trim().toLowerCase()
@@ -225,5 +225,13 @@ export default function ForgotPasswordResetPage() {
         </div>
       </div>
     </main>
+  )
+}
+
+export default function ForgotPasswordResetPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-background" />}>
+      <ForgotPasswordResetContent />
+    </Suspense>
   )
 }
