@@ -59,9 +59,11 @@ jobs:
             cd ~/personal/movies/front
             git pull --ff-only origin main
             if docker compose version >/dev/null 2>&1; then
-              docker compose -f deploy/docker-compose.yml up -d --build frontend
+              docker compose -f deploy/docker-compose.yml build frontend
+              docker compose -f deploy/docker-compose.yml up -d --no-deps frontend
             elif command -v docker-compose >/dev/null 2>&1; then
-              docker-compose -f deploy/docker-compose.yml up -d --build frontend
+              docker-compose -f deploy/docker-compose.yml build frontend
+              docker-compose -f deploy/docker-compose.yml up -d --no-deps frontend
             else
               echo "Neither 'docker compose' nor 'docker-compose' is installed on VPS."
               exit 1
